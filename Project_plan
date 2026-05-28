@@ -1,0 +1,821 @@
+# StaySync — Complete 2-Week Project Plan
+
+## Project Summary
+
+**StaySync** is a unified Hotel Management System (HMS) for independent hotels and boutique resorts. It centralizes bookings, front-desk operations, housekeeping, billing/POS, and guest communications into a single real-time dashboard.
+
+**Tech Stack:**
+- **Backend:** PHP / Laravel (API) + MySQL
+- **Frontend:** React.js (Vite) + Zustand (state management)
+- **Real-time:** Laravel Broadcasting (Pusher or Soketi)
+- **Email:** Laravel Mail (Mailtrap for dev, Mailgun/SES for prod)
+- **Deployment:** Ubuntu VPS (DigitalOcean/AWS) or Laravel Forge
+
+---
+
+## Team Roles
+
+| Member | Role | Primary Responsibilities |
+|--------|------|--------------------------|
+| **You** | Backend Lead + Team Lead | Laravel API, DB schema, business logic, concurrency, scheduling, deployment, code reviews, sprint management |
+| **Dev 2** | Frontend Developer | React app, Tape Chart, all UI pages, Zustand stores, API integration |
+| **Dev 3** | Fullstack / Support | Housekeeping mobile view, POS module, email templates, testing, seeding, documentation |
+
+---
+
+## Pre-Sprint Setup (Day 0 — Before Day 1 Starts)
+
+*Complete this the weekend before the sprint begins. ~3–4 hours total.*
+
+### Everyone:
+- [ ] Agree on Git workflow: `main` → `develop` → feature branches. PRs into `develop`.
+- [ ] Set up shared communication (Slack/Discord channel, daily 15-min standup time).
+- [ ] Clone and run boilerplates locally to confirm environments work.
+
+### You (Backend Lead):
+- [ ] `laravel new staysync-api` — Initialize Laravel project.
+- [ ] Configure `.env` for local MySQL database `staysync_db`.
+- [ ] Install key packages:
+  ```bash
+  composer require laravel/sanctum
+  composer require pusher/pusher-php-server
+  composer require barryvdh/laravel-dompdf  # for invoice PDFs
+  ```
+- [ ] Set up Git repo, branch protection rules on `main`.
+- [ ] Create a shared Postman workspace or Insomnia collection.
+
+### Dev 2 (Frontend):
+- [ ] `npm create vite@latest staysync-frontend -- --template react`
+- [ ] Install core dependencies:
+  ```bash
+  npm install zustand axios react-router-dom dayjs
+  npm install @tanstack/react-query
+  npm install tailwindcss @headlessui/react
+  ```
+- [ ] Set up folder structure, Tailwind config, base layout with sidebar navigation.
+
+### Dev 3 (Fullstack):
+- [ ] Help You finalize the database ERD (use dbdiagram.io).
+- [ ] Set up Mailtrap account for email testing.
+- [ ] Research `react-big-calendar` or alternative for Tape Chart and share findings with Dev 2.
+
+---
+
+## Database Schema (Finalize on Day 0)
+
+```sql
+-- This is the blueprint. You will translate to Laravel migrations.
+
+room_types
+  id, name (Deluxe, Suite, Standard), slug, base_rate, max_occupancy,
+  description, amenities (JSON), created_at, updated_at
+
+rooms
+  id, room_type_id (FK), room_number (unique, e.g. "101"),
+  floor, status (enum: available, occupied, maintenance, cleaning),
+  is_active (bool), created_at, updated_at
+
+guests
+  id, first_name, last_name, email (unique), phone, id_type,
+  id_number, address, city, country, notes, loyalty_tier,
+  total_stays, created_at, updated_at
+
+bookings
+  id, booking_reference (unique, auto-generated e.g. "SS-20250712-001"),
+  guest_id (FK), room_id (FK), room_type_id (FK),
+  check_in_date (date), check_out_date (date),
+  actual_check_in (datetime, nullable), actual_check_out (datetime, nullable),
+  num_adults, num_children,
+  status (enum: confirmed, checked_in, checked_out, cancelled, no_show),
+  source (enum: walk_in, phone, website, ota),
+  subtotal, tax_amount, discount_amount, total_price,
+  special_requests (text, nullable),
+  created_at, updated_at
+
+booking_addons
+  id, booking_id (FK), description (e.g. "Extra Bed", "Airport Pickup"),
+  quantity, unit_price, total_price, created_at
+
+folio_charges
+  id, booking_id (FK), charge_type (enum: room, restaurant, spa, minibar, laundry, other),
+  description, amount, posted_by (user_id FK), charged_at (datetime),
+  created_at, updated_at
+
+payments
+  id, booking_id (FK), amount, payment_method (enum: cash, card, bank_transfer, online),
+  transaction_reference (nullable), status (enum: pending, completed, refunded),
+  paid_at (datetime), created_at, updated_at
+
+room_status_logs
+  id, room_id (FK), previous_status, new_status,
+  changed_by (user_id FK, nullable), notes, created_at
+
+housekeeping_tasks
+  id, room_id (FK), assigned_to (user_id FK, nullable),
+  priority (enum: low, normal, urgent),
+  status (enum: pending, in_progress, completed),
+  notes, completed_at (datetime, nullable), created_at, updated_at
+
+users
+  id, name, email, password, role (enum: admin, front_desk, housekeeping, manager, pos_staff),
+  is_active, created_at, updated_at
+
+rate_overrides
+  id, room_type_id (FK), date (date), override_rate, reason, created_at
+
+settings
+  id, key (unique), value, created_at, updated_at
+  -- e.g. hotel_name, checkout_time, tax_rate, currency
+```
+
+---
+
+## Sprint Calendar — 10 Working Days
+
+---
+
+### WEEK 1: Foundation & Core Features
+
+---
+
+#### **DAY 1 (Monday) — Database + Auth + Project Skeleton**
+
+**You (Backend):**
+- [ ] Create ALL migrations from the schema above (in dependency order).
+- [ ] Create all Eloquent models with relationships:
+  - `RoomType hasMany Rooms`, `Room belongsTo RoomType`
+  - `Guest hasMany Bookings`, `Booking belongsTo Guest, Room`
+  - `Booking hasMany FolioCharges, Payments, BookingAddons`
+  - `Room hasMany RoomStatusLogs, HousekeepingTasks`
+- [ ] Set up Laravel Sanctum for API token authentication.
+- [ ] Create `AuthController` with `POST /register`, `POST /login`, `POST /logout`, `GET /me`.
+- [ ] Create `UserSeeder` with one user per role.
+- [ ] Create `DatabaseSeeder` with:
+  - 4 room types (Standard, Deluxe, Suite, Presidential)
+  - 20 rooms across types
+  - 5 sample guests
+- [ ] Run migrations + seeders, verify in MySQL.
+
+**Dev 2 (Frontend):**
+- [ ] Build the app shell layout:
+  - Sidebar navigation (Dashboard, Tape Chart, Bookings, Guests, Housekeeping, POS, Reports)
+  - Top bar with user info and logout
+  - Content area with `<Outlet />`
+- [ ] Set up React Router with all placeholder routes.
+- [ ] Build Login page with form.
+- [ ] Create Zustand `authStore` (token, user, login(), logout()).
+- [ ] Create `api.js` Axios instance with base URL and token interceptor.
+- [ ] Build a `ProtectedRoute` wrapper component.
+
+**Dev 3 (Fullstack):**
+- [ ] Create Form Request validation classes: `LoginRequest`, `RegisterRequest`.
+- [ ] Create `RoomTypeResource`, `RoomResource`, `GuestResource` (API Resources for clean JSON responses).
+- [ ] Write a `README.md` with setup instructions for all three developers.
+- [ ] Set up Postman collection with Auth folder, add Register + Login requests.
+
+**End of Day 1 Milestone:** ✅ Backend serves auth endpoints. Frontend has login working and hitting the API. Database is seeded with test data.
+
+---
+
+#### **DAY 2 (Tuesday) — Room & Room Type CRUD + Dashboard**
+
+**You (Backend):**
+- [ ] `RoomTypeController` — full CRUD:
+  - `GET /api/room-types` (with room count)
+  - `POST /api/room-types`
+  - `PUT /api/room-types/{id}`
+  - `DELETE /api/room-types/{id}`
+- [ ] `RoomController` — full CRUD:
+  - `GET /api/rooms` (with filters: status, room_type, floor)
+  - `POST /api/rooms`
+  - `PUT /api/rooms/{id}`
+  - `PATCH /api/rooms/{id}/status` (change status with logging)
+  - `DELETE /api/rooms/{id}`
+- [ ] Create `RoomStatusService` — centralize status changes, auto-create `room_status_logs` entry on every change.
+- [ ] `GET /api/dashboard/stats` endpoint returning:
+  - Total rooms, occupied count, available count, cleaning count
+  - Today's check-ins, today's check-outs
+  - Occupancy rate percentage
+  - Revenue today / this week / this month
+
+**Dev 2 (Frontend):**
+- [ ] Build Dashboard page:
+  - Stat cards (Total Rooms, Occupied, Available, Today's Check-ins, Revenue)
+  - Room status overview (color-coded grid or list)
+  - Today's arrivals list, today's departures list
+- [ ] Create Zustand `dashboardStore` with fetch function.
+- [ ] Build Rooms Management page (table with status badges, filters by type/status/floor).
+- [ ] Build Room Type Management page (table + create/edit modal).
+
+**Dev 3 (Fullstack):**
+- [ ] Create `StoreRoomRequest`, `UpdateRoomRequest`, `StoreRoomTypeRequest` validation classes.
+- [ ] Create `DashboardService` class (You will call this from the controller, Dev 3 writes the query logic).
+- [ ] Add all Room and RoomType endpoints to Postman collection with example payloads.
+
+**End of Day 2 Milestone:** ✅ Dashboard shows live stats from API. Rooms and Room Types can be viewed, created, edited, and deleted through the UI.
+
+---
+
+#### **DAY 3 (Wednesday) — Guest Management + Booking Creation (Backend)**
+
+**You (Backend):**
+- [ ] `GuestController` — CRUD:
+  - `GET /api/guests` (searchable by name, email, phone; paginated)
+  - `GET /api/guests/{id}` (with booking history)
+  - `POST /api/guests`
+  - `PUT /api/guests/{id}`
+- [ ] `BookingController` — Create + Read:
+  - `POST /api/bookings` — **the most critical endpoint**
+  - `GET /api/bookings` (filters: status, date range, guest, room)
+  - `GET /api/bookings/{id}` (full details with guest, room, addons, charges, payments)
+- [ ] **`BookingService` class** — core booking logic:
+  ```php
+  public function createBooking(array $data): Booking
+  {
+      return DB::transaction(function () use ($data) {
+          // 1. Lock the room row
+          $room = Room::where('id', $data['room_id'])
+              ->lockForUpdate()
+              ->firstOrFail();
+
+          // 2. Check for overlapping bookings
+          $overlap = Booking::where('room_id', $room->id)
+              ->where('status', '!=', 'cancelled')
+              ->where(function ($q) use ($data) {
+                  $q->where('check_in_date', '<', $data['check_out_date'])
+                    ->where('check_out_date', '>', $data['check_in_date']);
+              })->exists();
+
+          if ($overlap) {
+              throw new BookingConflictException('Room is not available for the selected dates.');
+          }
+
+          // 3. Calculate pricing
+          $pricing = $this->pricingEngine->calculate(
+              $room->roomType,
+              $data['check_in_date'],
+              $data['check_out_date']
+          );
+
+          // 4. Create guest if new
+          // 5. Create booking record
+          // 6. Create addons if any
+          // 7. Update room status if check-in is today
+          // 8. Return booking
+      });
+  }
+  ```
+- [ ] Create `PricingEngine` service class:
+  - Calculate nightly rate × number of nights
+  - Check `rate_overrides` table for date-specific rates
+  - Apply day-of-week multipliers (weekend surcharge)
+  - Calculate tax from settings
+- [ ] Create custom exception `BookingConflictException` with 409 status code.
+- [ ] `GET /api/rooms/availability?check_in=2025-07-15&check_out=2025-07-18&room_type_id=2` — returns available rooms for date range.
+
+**Dev 2 (Frontend):**
+- [ ] Build Guest List page (searchable table, click to view profile).
+- [ ] Build Guest Detail page (info card + booking history tab).
+- [ ] Build Guest Create/Edit modal or form.
+- [ ] Create Zustand `guestStore`.
+- [ ] Begin the **New Booking Form** (multi-step or single page):
+  - Step 1: Select dates + room type → fetch available rooms
+  - Step 2: Select specific room
+  - Step 3: Guest info (search existing or create new)
+  - Step 4: Add-ons (extra bed, airport pickup, etc.)
+  - Step 5: Review & Confirm
+
+**Dev 3 (Fullstack):**
+- [ ] Create `StoreBookingRequest` with complex validation:
+  - `check_out_date` must be after `check_in_date`
+  - `room_id` must exist and be active
+  - `guest_id` or guest creation data must be present
+- [ ] Create `BookingResource` and `GuestResource` (API Resources).
+- [ ] Generate `booking_reference` automatically in Booking model `boot()` method.
+- [ ] Create `BookingSeeder` — 10 sample bookings across different statuses.
+
+**End of Day 3 Milestone:** ✅ Can create a booking through Postman with pessimistic locking working. Frontend has guest management working and booking form UI in progress.
+
+---
+
+#### **DAY 4 (Thursday) — Booking Lifecycle + Tape Chart Data**
+
+**You (Backend):**
+- [ ] Booking lifecycle endpoints:
+  - `PATCH /api/bookings/{id}/check-in` — validates room is clean/available, sets `actual_check_in`, changes booking status to `checked_in`, room status to `occupied`.
+  - `PATCH /api/bookings/{id}/check-out` — sets `actual_check_out`, status to `checked_out`, room to `cleaning`, auto-creates housekeeping task.
+  - `PATCH /api/bookings/{id}/cancel` — cancellation with reason.
+  - `PATCH /api/bookings/{id}/no-show` — mark as no-show.
+- [ ] `PUT /api/bookings/{id}` — modify booking (change dates, room, recalculate price with locking).
+- [ ] **Tape Chart endpoint:**
+  ```
+  GET /api/tape-chart?start_date=2025-07-01&end_date=2025-07-31
+  ```
+  Returns:
+  ```json
+  {
+    "rooms": [
+      {
+        "id": 1,
+        "room_number": "101",
+        "room_type": "Deluxe",
+        "floor": 1,
+        "bookings": [
+          {
+            "id": 15,
+            "guest_name": "John Doe",
+            "check_in": "2025-07-05",
+            "check_out": "2025-07-08",
+            "status": "confirmed",
+            "color": "#3B82F6"
+          }
+        ]
+      }
+    ],
+    "date_range": ["2025-07-01", "2025-07-02", ...]
+  }
+  ```
+- [ ] Set up Laravel Broadcasting:
+  - Install Pusher or Soketi.
+  - Create events: `BookingCreated`, `BookingUpdated`, `RoomStatusChanged`.
+  - Configure channels: `private-hotel.dashboard`, `private-hotel.housekeeping`.
+
+**Dev 2 (Frontend):**
+- [ ] **Build the Tape Chart (this is the big one):**
+  - Option A: Use `react-big-calendar` with custom resource view.
+  - Option B (recommended for this project): Build a custom grid:
+    - Y-axis: rooms (grouped by floor or type)
+    - X-axis: dates (scrollable, default 14-day view)
+    - Booking blocks: colored bars spanning check-in to check-out
+    - Click on a booking block → open booking detail panel
+    - Click on an empty cell → open new booking form pre-filled with room + date
+  - Color-code by status: Confirmed (blue), Checked-in (green), Checked-out (gray), Cancelled (red)
+- [ ] Create Zustand `tapeChartStore` with date range state, fetch function.
+- [ ] Build Booking List page (table view with status filter tabs: All, Confirmed, Checked-in, Checked-out, Cancelled).
+
+**Dev 3 (Fullstack):**
+- [ ] Build Booking Detail panel/page:
+  - Guest info section
+  - Room info section
+  - Dates and pricing breakdown
+  - Action buttons: Check-in, Check-out, Cancel, Edit, Print
+  - Add-ons list
+  - Folio charges list (placeholder for now)
+  - Payments list (placeholder for now)
+- [ ] Wire up check-in/check-out/cancel buttons to API endpoints.
+- [ ] Add booking endpoints to Postman with test scenarios.
+
+**End of Day 4 Milestone:** ✅ Full booking lifecycle works (create → check-in → check-out). Tape Chart renders with real booking data. Real-time events are broadcasting.
+
+---
+
+#### **DAY 5 (Friday) — Housekeeping Module + Real-Time Updates**
+
+**You (Backend):**
+- [ ] `HousekeepingController`:
+  - `GET /api/housekeeping/tasks` (filters: status, priority, assigned_to, floor)
+  - `POST /api/housekeeping/tasks` (manually create)
+  - `PATCH /api/housekeeping/tasks/{id}` (update status, assign)
+  - `PATCH /api/housekeeping/tasks/{id}/complete` — marks task complete, changes room status to `available`, broadcasts `RoomStatusChanged` event.
+- [ ] **Task Scheduling — `app/Console/Kernel.php`:**
+  ```php
+  // At 11:00 AM daily: auto-generate housekeeping tasks for checkout rooms
+  $schedule->call(function () {
+      $bookings = Booking::where('status', 'checked_in')
+          ->where('check_out_date', today())
+          ->get();
+
+      foreach ($bookings as $booking) {
+          HousekeepingTask::create([
+              'room_id' => $booking->room_id,
+              'priority' => 'normal',
+              'status' => 'pending',
+              'notes' => 'Auto-generated: Checkout day cleaning',
+          ]);
+      }
+  })->dailyAt('11:00');
+
+  // At midnight: mark no-shows (confirmed bookings where check_in_date was yesterday)
+  $schedule->call(function () {
+      Booking::where('status', 'confirmed')
+          ->where('check_in_date', '<', today())
+          ->update(['status' => 'no_show']);
+  })->dailyAt('00:05');
+  ```
+- [ ] Set up real-time event listeners on the frontend (work with Dev 2):
+  - When `RoomStatusChanged` fires → update tape chart + dashboard
+  - When `BookingCreated` fires → add to tape chart
+
+**Dev 2 (Frontend):**
+- [ ] Integrate real-time updates:
+  - Install `laravel-echo` and `pusher-js`.
+  - Listen for events in the Dashboard and Tape Chart components.
+  - On event received → refetch or optimistically update Zustand stores.
+- [ ] Polish the Tape Chart:
+  - Add date navigation (prev/next week, date picker)
+  - Add room type filter
+  - Tooltip on hover showing booking summary
+  - Responsive scroll behavior
+- [ ] Complete the New Booking flow end-to-end:
+  - Available rooms fetch → select → guest → addons → review → submit → redirect to booking detail.
+
+**Dev 3 (Fullstack):**
+- [ ] **Build the Housekeeping Mobile View** (a separate route `/housekeeping`):
+  - Simple, large-button mobile-friendly layout.
+  - Login screen (filtered to housekeeping role users).
+  - List of assigned tasks grouped by floor.
+  - Each card shows: Room number, priority badge, notes.
+  - Large "Start Cleaning" and "Mark Clean" buttons.
+  - On "Mark Clean" → API call → room becomes available → front desk sees update instantly.
+- [ ] Implement toast notifications on the front desk dashboard when a room is cleaned.
+
+**End of Day 5 / Week 1 Milestone:** ✅ Core HMS is functional. Bookings can be created, managed, checked in/out. Housekeeping can clean rooms on mobile and front desk sees updates in real-time. Tape Chart is interactive.
+
+---
+
+### WEEK 2: Billing, Polish, Testing, Deploy
+
+---
+
+#### **DAY 6 (Monday) — Folio / Billing + POS**
+
+**You (Backend):**
+- [ ] `FolioController`:
+  - `GET /api/bookings/{id}/folio` — returns all charges + payments + balance
+  - `POST /api/bookings/{id}/charges` — add a charge (room charge, restaurant, spa, minibar, etc.)
+  - `DELETE /api/folio-charges/{id}` — void a charge (with permission check)
+- [ ] `PaymentController`:
+  - `POST /api/bookings/{id}/payments` — record payment (cash, card, etc.)
+  - `GET /api/bookings/{id}/payments`
+- [ ] Auto-post room charges: When check-in happens, automatically post nightly room charges to the folio.
+- [ ] **Balance calculation logic:**
+  ```php
+  // In BookingService or FolioService
+  public function getFolioSummary(Booking $booking): array
+  {
+      $roomCharges = $booking->folioCharges->where('charge_type', 'room')->sum('amount');
+      $otherCharges = $booking->folioCharges->where('charge_type', '!=', 'room')->sum('amount');
+      $totalCharges = $booking->folioCharges->sum('amount');
+      $totalPayments = $booking->payments->where('status', 'completed')->sum('amount');
+      $balance = $totalCharges - $totalPayments;
+
+      return compact('roomCharges', 'otherCharges', 'totalCharges', 'totalPayments', 'balance');
+  }
+  ```
+- [ ] Invoice generation: `GET /api/bookings/{id}/invoice` → returns PDF using `laravel-dompdf`.
+
+**Dev 2 (Frontend):**
+- [ ] Build Booking Detail page (full version):
+  - **Folio tab**: Table of all charges (date, description, type, amount) + add charge button
+  - **Payments tab**: Table of payments + record payment button
+  - Balance summary card (Total Charges, Total Paid, Balance Due)
+  - Print Invoice button
+- [ ] Build "Add Charge" modal (select type: restaurant, spa, minibar, laundry, other → description, amount).
+- [ ] Build "Record Payment" modal (amount, method dropdown, reference number).
+
+**Dev 3 (Fullstack):**
+- [ ] **Build a simple POS page** (`/pos`):
+  - Search for a checked-in guest by name or room number.
+  - Select charge category (Restaurant, Spa, Minibar, Laundry).
+  - Enter description and amount.
+  - Submit → posts to folio API.
+  - Confirmation message: "₦15,000 charged to Room 201 - John Doe"
+- [ ] Create the Invoice Blade template (`resources/views/invoice.blade.php`):
+  - Hotel name, address, logo placeholder
+  - Guest info
+  - Itemized charges table
+  - Payments table
+  - Balance due
+  - Clean, professional layout
+
+**End of Day 6 Milestone:** ✅ Full billing system works. POS staff can post charges to guest folios. Payments can be recorded. Invoices can be generated as PDF.
+
+---
+
+#### **DAY 7 (Tuesday) — Dynamic Pricing + Guest Communications**
+
+**You (Backend):**
+- [ ] **Enhance the `PricingEngine`:**
+  ```php
+  class PricingEngine
+  {
+      public function calculateNightlyRate(RoomType $roomType, Carbon $date): float
+      {
+          // 1. Check for manual override
+          $override = RateOverride::where('room_type_id', $roomType->id)
+              ->where('date', $date->toDateString())
+              ->first();
+
+          if ($override) {
+              return $override->override_rate;
+          }
+
+          $rate = $roomType->base_rate;
+
+          // 2. Weekend surcharge (Fri/Sat)
+          if ($date->isWeekend()) {
+              $rate *= 1.15; // 15% weekend surcharge
+          }
+
+          // 3. Occupancy-based yield management
+          $occupancyRate = $this->getOccupancyRate($date);
+          if ($occupancyRate > 0.85) {
+              $rate *= 1.20; // 20% surge when >85% occupied
+          } elseif ($occupancyRate > 0.70) {
+              $rate *= 1.10;
+          }
+
+          return round($rate, 2);
+      }
+  }
+  ```
+- [ ] `RateController`:
+  - `GET /api/rates?room_type_id=1&start_date=...&end_date=...` — view rates for date range
+  - `POST /api/rates/overrides` — set manual rate override for a date
+  - `DELETE /api/rate-overrides/{id}`
+- [ ] **Guest Communications (Laravel Mail):**
+  - `BookingConfirmationMail` — sent on booking creation.
+  - `PreArrivalMail` — sent 1 day before check-in (scheduled job) with digital registration card.
+  - `PostDepartureMail` — sent after check-out with invoice PDF attached.
+  - Create Blade email templates for each.
+  - Schedule: `$schedule->command('emails:pre-arrival')->dailyAt('09:00');`
+- [ ] Create Artisan commands:
+  - `php artisan emails:pre-arrival`
+  - `php artisan emails:post-departure`
+
+**Dev 2 (Frontend):**
+- [ ] Build Rate Management page:
+  - Calendar view showing rates per room type per day.
+  - Click a cell to set an override rate.
+  - Visual indicators for overridden rates vs. calculated rates.
+- [ ] Polish the Dashboard:
+  - Add a "Quick Actions" panel (New Booking, Walk-in Check-in, Search Guest).
+  - Improve the stat cards with trend indicators.
+  - Add today's arrivals/departures lists with one-click check-in/check-out.
+- [ ] Global search bar in top nav: search guests, bookings (by reference), rooms.
+
+**Dev 3 (Fullstack):**
+- [ ] Create email Blade templates (responsive HTML):
+  - Booking confirmation
+  - Pre-arrival welcome
+  - Post-departure thank you with invoice
+- [ ] Create `SettingsController` + settings page:
+  - `GET /api/settings`
+  - `PUT /api/settings` (batch update)
+  - Settings: hotel_name, hotel_address, checkout_time, tax_rate, currency, hotel_phone, hotel_email
+- [ ] Build a simple Settings page in React (form with save button).
+
+**End of Day 7 Milestone:** ✅ Dynamic pricing engine calculates rates correctly. Emails are sending via Mailtrap. Settings are configurable.
+
+---
+
+#### **DAY 8 (Wednesday) — Reports + Roles/Permissions + Polish**
+
+**You (Backend):**
+- [ ] **Reports endpoints:**
+  - `GET /api/reports/occupancy?start_date=...&end_date=...` — daily occupancy percentage
+  - `GET /api/reports/revenue?start_date=...&end_date=...&group_by=day|week|month` — revenue breakdown
+  - `GET /api/reports/room-type-performance` — revenue and occupancy per room type
+  - `GET /api/reports/guest-statistics` — top guests, repeat guests, average stay length
+- [ ] **Role-based middleware:**
+  ```php
+  // Middleware: CheckRole
+  Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
+      // Settings, reports, rate management
+  });
+  Route::middleware(['auth:sanctum', 'role:admin,front_desk,manager'])->group(function () {
+      // Bookings, guests, rooms
+  });
+  Route::middleware(['auth:sanctum', 'role:housekeeping'])->group(function () {
+      // Housekeeping tasks only
+  });
+  ```
+- [ ] Audit logging: Create an `activity_logs` table and log critical actions (booking created, payment recorded, rate changed, etc.).
+- [ ] API error handling: Create a global exception handler that returns consistent JSON errors.
+
+**Dev 2 (Frontend):**
+- [ ] Build Reports page:
+  - Occupancy chart (line chart, use recharts or chart.js)
+  - Revenue chart (bar chart)
+  - Room type performance table
+  - Date range picker for all reports
+- [ ] Implement role-based UI:
+  - Hide sidebar items based on user role.
+  - Disable action buttons based on permissions.
+  - Housekeeping users only see `/housekeeping` route.
+- [ ] UX Polish pass:
+  - Loading spinners/skeletons on all data fetches.
+  - Error states and empty states.
+  - Confirmation dialogs for destructive actions (cancel booking, void charge).
+  - Success toast notifications.
+
+**Dev 3 (Fullstack):**
+- [ ] Write `UserSeeder` with realistic users per role.
+- [ ] Write comprehensive `DatabaseSeeder`:
+  - 4 room types, 30 rooms
+  - 20 guests with varied data
+  - 50 bookings across all statuses (past, present, future)
+  - Folio charges and payments for checked-out bookings
+  - Housekeeping tasks
+- [ ] Test all email templates with Mailtrap, fix styling issues.
+- [ ] Create user management page (admin only): list users, create user, toggle active.
+
+**End of Day 8 Milestone:** ✅ Reports are generating. Role-based access is enforced. Demo data is rich and realistic.
+
+---
+
+#### **DAY 9 (Thursday) — Integration Testing + Bug Fixes + Deployment Prep**
+
+**You (Backend):**
+- [ ] Write critical Feature tests:
+  ```php
+  // tests/Feature/BookingTest.php
+  - test_can_create_booking
+  - test_cannot_double_book_a_room
+  - test_concurrent_booking_only_one_succeeds
+  - test_check_in_updates_room_status
+  - test_check_out_creates_housekeeping_task
+  - test_pricing_engine_applies_weekend_surcharge
+  - test_pricing_engine_applies_rate_override
+  - test_folio_balance_calculation
+  ```
+- [ ] Fix any bugs found during testing.
+- [ ] Prepare deployment:
+  - Create production `.env.production` template
+  - Configure CORS for production domain
+  - Set up `php artisan config:cache`, `route:cache`, `view:cache` in deploy script
+  - Write deployment script or configure Laravel Forge/Ploi
+
+**Dev 2 (Frontend):**
+- [ ] End-to-end manual testing of all flows:
+  - [ ] Login → Dashboard loads with correct stats
+  - [ ] Create a new booking → appears on tape chart
+  - [ ] Check in → room turns green on tape chart, dashboard updates
+  - [ ] Post a restaurant charge via POS → appears on folio
+  - [ ] Check out → housekeeping task created, room turns to cleaning
+  - [ ] Housekeeping marks clean → room turns available on dashboard
+  - [ ] Record payment → balance updates correctly
+  - [ ] Generate invoice PDF
+- [ ] Fix all UI bugs found.
+- [ ] Responsive testing: ensure dashboard and key pages work on tablet.
+- [ ] Build production: `npm run build`, verify output.
+
+**Dev 3 (Fullstack):**
+- [ ] End-to-end testing of secondary flows:
+  - [ ] Guest search and profile viewing
+  - [ ] Rate override creation and pricing verification
+  - [ ] Email sending (check Mailtrap)
+  - [ ] Reports with date ranges
+  - [ ] Settings update
+  - [ ] User management (admin)
+- [ ] Write API documentation (a Markdown file or Postman-published docs).
+- [ ] Prepare deployment checklist document.
+- [ ] Set up production database: run migrations, run minimal seed (room types, rooms, admin user).
+
+**End of Day 9 Milestone:** ✅ All critical paths tested. Known bugs fixed. Deployment config ready.
+
+---
+
+#### **DAY 10 (Friday) — Deploy + Final Verification**
+
+**Everyone — Deployment Day:**
+
+**You (Backend):**
+- [ ] Provision server (DigitalOcean Droplet / AWS EC2 / Laravel Forge):
+  - Ubuntu 22.04
+  - PHP 8.2, MySQL 8, Nginx, Composer, Node.js, Supervisor (for queues)
+  - SSL certificate (Let's Encrypt via Certbot)
+- [ ] Deploy Laravel API:
+  ```bash
+  git clone repo
+  composer install --no-dev --optimize-autoloader
+  cp .env.production .env
+  php artisan key:generate
+  php artisan migrate --force
+  php artisan db:seed --class=ProductionSeeder  # minimal: room types, rooms, admin user
+  php artisan config:cache
+  php artisan route:cache
+  php artisan view:cache
+  php artisan storage:link
+  ```
+- [ ] Configure Nginx virtual host for API domain (e.g., `api.staysync.com`).
+- [ ] Set up Supervisor for queue workers.
+- [ ] Set up cron:
+  ```
+  * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
+  ```
+- [ ] Set up Pusher production credentials (or deploy Soketi).
+- [ ] Verify all API endpoints work on production.
+
+**Dev 2 (Frontend):**
+- [ ] Update `.env.production` with production API URL.
+- [ ] `npm run build`
+- [ ] Deploy `dist/` folder to:
+  - Option A: Same server, served by Nginx on a different virtual host (e.g., `app.staysync.com`)
+  - Option B: Vercel / Netlify (simpler)
+- [ ] Configure Nginx SPA fallback: `try_files $uri $uri/ /index.html;`
+- [ ] Test all pages on production URL.
+- [ ] Verify real-time updates work on production.
+
+**Dev 3 (Fullstack):**
+- [ ] Run full manual test suite on production:
+  - [ ] Login with each role
+  - [ ] Complete booking lifecycle
+  - [ ] POS charge posting
+  - [ ] Housekeeping flow
+  - [ ] Invoice generation
+  - [ ] Email sending (switch to Mailgun/SES for prod)
+- [ ] Document any production-specific issues and fixes.
+- [ ] Create a "Known Limitations" document for handoff.
+- [ ] Take screenshots/record demo video.
+
+**End of Day 10 Milestone:** 🚀 **StaySync is LIVE.** All core features working in production.
+
+---
+
+## API Endpoints Summary
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/login` | Authenticate |
+| POST | `/api/logout` | Logout |
+| GET | `/api/me` | Current user |
+| GET/POST | `/api/room-types` | List / Create room types |
+| PUT/DEL | `/api/room-types/{id}` | Update / Delete |
+| GET/POST | `/api/rooms` | List (filterable) / Create rooms |
+| PUT | `/api/rooms/{id}` | Update room |
+| PATCH | `/api/rooms/{id}/status` | Change status |
+| GET | `/api/rooms/availability` | Available rooms for dates |
+| GET/POST | `/api/guests` | List (searchable) / Create |
+| GET/PUT | `/api/guests/{id}` | View / Update |
+| GET/POST | `/api/bookings` | List (filterable) / Create |
+| GET/PUT | `/api/bookings/{id}` | View / Update |
+| PATCH | `/api/bookings/{id}/check-in` | Check in |
+| PATCH | `/api/bookings/{id}/check-out` | Check out |
+| PATCH | `/api/bookings/{id}/cancel` | Cancel |
+| GET | `/api/bookings/{id}/folio` | View folio summary |
+| POST | `/api/bookings/{id}/charges` | Post charge |
+| POST | `/api/bookings/{id}/payments` | Record payment |
+| GET | `/api/bookings/{id}/invoice` | Download PDF |
+| GET | `/api/tape-chart` | Tape chart data |
+| GET/POST | `/api/housekeeping/tasks` | List / Create tasks |
+| PATCH | `/api/housekeeping/tasks/{id}/complete` | Complete task |
+| GET/POST | `/api/rates/overrides` | View / Set rate overrides |
+| GET | `/api/dashboard/stats` | Dashboard statistics |
+| GET | `/api/reports/occupancy` | Occupancy report |
+| GET | `/api/reports/revenue` | Revenue report |
+| GET/PUT | `/api/settings` | View / Update settings |
+| GET/POST | `/api/users` | List / Create users (admin) |
+
+---
+
+## Daily Standup Template (15 minutes, every morning)
+
+Each person answers:
+1. **What did I complete yesterday?**
+2. **What am I working on today?**
+3. **Any blockers?**
+
+---
+
+## Risk Mitigation
+
+| Risk | Mitigation |
+|------|------------|
+| Tape Chart takes too long | Use a simpler grid table (HTML table with colored cells) instead of a complex calendar library. Can always upgrade later. |
+| Real-time is flaky | Fall back to polling (refetch every 30 seconds) if Pusher/broadcasting has issues. Implement both. |
+| Dynamic pricing edge cases | Start with simple logic (base rate × nights + weekend surcharge). Add occupancy-based pricing as a stretch goal. |
+| Team member gets blocked | You (team lead) unblock immediately. Pair program for 30 mins. Reprioritize tasks. |
+| Deployment issues | Have a Forge/Ploi account ready as backup. Use SQLite for quick demo if MySQL setup fails. |
+| Scope creep | The POS, email, and reports are "nice to have." Core MVP = Rooms + Bookings + Tape Chart + Housekeeping. Cut from the bottom of the priority list. |
+
+---
+
+## Priority Tiers (What to Cut If Behind Schedule)
+
+**P0 — Must Ship (Days 1–5):**
+- Auth, Rooms, Guests, Bookings (CRUD + lifecycle)
+- Tape Chart (even if basic)
+- Housekeeping (basic task list + complete)
+- Dashboard with live stats
+
+**P1 — Should Ship (Days 6–7):**
+- Folio / Billing (charges + payments)
+- POS charge posting
+- Invoice PDF generation
+- Basic dynamic pricing
+
+**P2 — Nice to Have (Days 7–8):**
+- Automated emails (confirmation, pre-arrival, post-departure)
+- Reports with charts
+- Rate management calendar UI
+- Settings page
+
+**P3 — Stretch Goals (Post-launch):**
+- Occupancy-based yield management
+- Guest loyalty tiers
+- Channel manager OTA integration
+- Multi-property support
+
+---
+

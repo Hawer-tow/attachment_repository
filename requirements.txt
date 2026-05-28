@@ -1,0 +1,241 @@
+# StaySync HMS - Project Requirements
+# Generated from README.md
+# Last Updated: May 2026
+
+## System Requirements
+
+### Backend (PHP/Laravel)
+- PHP: 8.2+
+- Laravel: 10
+- MySQL: 8.0+
+- Composer: Latest version
+
+### Frontend (React)
+- Node.js: 18+
+- npm or yarn: Latest version
+- React: 18
+- Vite: Latest version
+
+### Version Control & Tools
+- Git: Latest version
+
+---
+
+## Backend Dependencies (Composer)
+
+### Core Laravel Framework
+- laravel/framework: ^10.0
+- laravel/sanctum: (API authentication)
+
+### Real-Time & Broadcasting
+- pusher/pusher-php-server: (Real-time updates)
+- laravel-echo-server or soketi: (WebSocket server)
+
+### PDF Generation
+- barryvdh/laravel-dompdf: (Invoice generation)
+
+### Email & Communication
+- Laravel Mail: (Built-in, configured with Mailtrap/Mailgun)
+- mailtrap/mailtrap-php: (Development email testing)
+
+### Additional Libraries
+- (See backend/composer.json for complete list)
+
+---
+
+## Frontend Dependencies (npm)
+
+### Core Framework
+- react: ^18
+- react-dom: ^18
+- vite: (Build tool)
+
+### State Management
+- zustand: (Lightweight state store)
+
+### UI & Styling
+- tailwindcss: (CSS framework)
+- @headlessui/react: (Headless UI components)
+
+### HTTP Client
+- axios: (API requests)
+
+### Additional Libraries
+- (See frontend/package.json for complete list)
+
+---
+
+## Database Requirements
+
+### Database Server
+- MySQL: 8.0+ or compatible (MariaDB, PostgreSQL)
+- Character Set: UTF-8
+- Default Collation: utf8mb4_unicode_ci
+
+### Core Tables
+- users
+- guests
+- room_types
+- rooms
+- bookings
+- booking_addons
+- folio_charges
+- payments
+- housekeeping_tasks
+- room_status_logs
+- rate_overrides
+- settings
+
+---
+
+## Deployment Requirements
+
+### Production Server
+- OS: Ubuntu 22.04 LTS (recommended)
+- Web Server: Nginx
+- PHP: 8.2+
+- Node.js: 18+
+- MySQL: 8.0+
+- SSL Certificate: Let's Encrypt or commercial
+
+### Services & Infrastructure
+- Pusher or Soketi: Real-time messaging
+- Mailtrap (Dev) / Mailgun or SES (Prod): Email service
+- AWS S3 or similar: File storage & backups
+- DigitalOcean or AWS: Hosting provider
+
+### Background Services
+- Laravel Queue Worker: Email processing & scheduled tasks
+- Laravel Scheduler: Task scheduling (pre-arrival emails, auto-housekeeping tasks)
+- Supervisor: Process management for queue worker
+
+---
+
+## Development Tools & Services
+
+### Local Development
+- Postman: API testing (shared collection provided)
+- Mailtrap: Email testing in development
+- Git/GitHub: Version control
+
+### Testing & Quality
+- PHPUnit: PHP testing framework
+- Jest or Vitest: JavaScript testing framework
+- ESLint: JavaScript linting
+- Prettier: Code formatting
+
+---
+
+## API & Integration Requirements
+
+### Authentication
+- JWT Tokens: Laravel Sanctum
+- Authorization Header: Bearer token required for all endpoints
+
+### Response Format
+- JSON: All API responses in JSON format
+- HTTP Status Codes: Standard REST conventions
+
+### Real-Time Communication
+- WebSocket Support: For live updates via Pusher/Soketi
+- Polling Fallback: 30-second intervals if WebSocket unavailable
+
+---
+
+## Role-Based Access Control (RBAC)
+
+### User Roles
+- Admin: Full system access
+- Manager: Hotel management & reports
+- Front Desk: Bookings, check-in/out, guests
+- Housekeeping: Task management & room cleaning
+- POS Staff: Point of sale transactions
+
+---
+
+## Email Configuration
+
+### Development
+- Provider: Mailtrap
+- Templates: Blade (PHP)
+
+### Production
+- Provider: Mailgun or AWS SES
+- Templates: Blade (PHP)
+
+### Email Types
+- Booking Confirmation
+- Pre-Arrival Welcome (1 day before check-in)
+- Post-Departure Invoice
+
+---
+
+## File Storage & Backups
+
+### Local Development
+- Upload Directory: storage/uploads
+- Backups: Manual backups
+
+### Production
+- Cloud Storage: AWS S3 or similar
+- Backup Strategy: Weekly automated backups to S3
+- Invoice PDFs: Generated on-demand or cached in storage
+
+---
+
+## Performance & Scalability
+
+### Caching
+- Config Caching: php artisan config:cache
+- Route Caching: php artisan route:cache
+- View Caching: php artisan view:cache
+
+### Optimization
+- Database Indexes: On commonly queried columns
+- Pessimistic Locking: For booking conflict prevention
+- Query Optimization: N+1 query prevention
+
+### Concurrency Handling
+- Database Isolation Level: READ COMMITTED or higher
+- Transactions: For multi-step operations
+
+---
+
+## Known Limitations & Constraints
+
+- Single Property: Designed for one hotel property only
+- Basic Yield Management: Manual rate overrides, not advanced algorithms
+- Background Queuing Required: Email processing requires queue worker
+- WebSocket Fallback: Uses polling if real-time connection unavailable
+- Tape Chart: Default 14-day view; performance may degrade with very long date ranges
+- Frontend Role Restrictions: Admin features not yet role-restricted in UI
+
+---
+
+## Security Requirements
+
+### Encryption
+- Password Hashing: bcrypt (Laravel default)
+- Environment Variables: .env file for sensitive data
+
+### HTTPS/SSL
+- SSL Certificate: Required for production
+- HSTS: Recommended for security headers
+
+### Access Control
+- Role-Based Permissions: Enforced on API endpoints
+- Bearer Token Validation: All API requests authenticated
+
+---
+
+## Documentation References
+
+- Full API Documentation: docs/API.md
+- Database Schema: docs/DATABASE_SCHEMA.md
+- Deployment Guide: docs/DEPLOYMENT.md
+- Project Plan: Project_plan
+
+---
+
+**StaySync HMS - Hotel Management System**
+**Requirements Document - May 2026**
