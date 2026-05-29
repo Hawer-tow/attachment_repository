@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BadgeCheck,
   CalendarDays,
@@ -17,8 +17,6 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type ApiGuest } from '@/lib/protectedEndpoints';
-import { useGuestStore } from '@/app/store/guestStore';
 
 const INITIAL_GUESTS = [
   {
@@ -148,40 +146,7 @@ const INITIAL_GUESTS = [
   },
 ];
 
-type GuestRow = typeof INITIAL_GUESTS[number];
-
-function mapApiGuest(guest: ApiGuest): GuestRow {
-  const latestBooking = guest.bookings?.[0];
-  const room = latestBooking?.room;
-  const roomType = room?.room_type ?? room?.roomType;
-  const fullName = [guest.first_name, guest.last_name].filter(Boolean).join(' ') || 'Guest';
-
-  return {
-    guestId: `GST-${String(guest.id).padStart(3, '0')}`,
-    fullName,
-    gender: '',
-    nationality: guest.country ?? '',
-    phone: guest.phone ?? '',
-    email: guest.email ?? '',
-    idNumber: guest.id_number ?? '',
-    address: guest.address ?? '',
-    bookingId: latestBooking?.booking_reference ?? '',
-    roomNumber: room?.room_number ?? '',
-    roomType: roomType?.name ?? '',
-    checkIn: latestBooking?.check_in_date ? String(latestBooking.check_in_date).slice(0, 10) : '',
-    checkOut: latestBooking?.check_out_date ? String(latestBooking.check_out_date).slice(0, 10) : '',
-    numberOfGuests: (latestBooking?.num_adults ?? 1) + (latestBooking?.num_children ?? 0),
-    bookingStatus: latestBooking?.status ?? 'reserved',
-    paymentStatus: 'pending',
-    amountPaid: 0,
-    balance: Number(latestBooking?.total_price ?? 0),
-    paymentMethod: 'Pending',
-    stayHistory: guest.total_stays ?? 0,
-    previousBookings: guest.bookings?.map((booking) => booking.booking_reference).filter(Boolean) ?? [],
-    vip: (guest.total_stays ?? 0) >= 5,
-    notes: '',
-  };
-}
+type Guest = (typeof INITIAL_GUESTS)[number];
 
 const BOOKING_STATUS_STYLES: Record<string, string> = {
   checked_in: 'bg-emerald-100 text-emerald-700',
@@ -222,22 +187,11 @@ function StatCard({ label, value, icon, className }: { label: string; value: str
 }
 
 export default function GuestsPage() {
-  const [guests, setGuests] = useState<GuestRow[]>(INITIAL_GUESTS);
-  const apiGuests = useGuestStore((state) => state.guests);
-  const loadError = useGuestStore((state) => state.error);
-  const fetchGuests = useGuestStore((state) => state.fetchGuests);
+  const [guests, setGuests] = useState<Guest[]>(INITIAL_GUESTS);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-
-  useEffect(() => {
-    void fetchGuests();
-  }, [fetchGuests]);
-
-  useEffect(() => {
-    if (apiGuests.length > 0) {
-      setGuests(apiGuests.map(mapApiGuest));
-    }
-  }, [apiGuests]);
+  const [notice, setNotice] = useState('');
+  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
 
   const filteredGuests = guests.filter((guest) => {
     const query = search.toLowerCase();
@@ -258,6 +212,23 @@ export default function GuestsPage() {
     vip: guests.filter((guest) => guest.vip).length,
   }), [guests]);
 
+  const showNotice = (message: string) => {
+    setNotice(message);
+    window.setTimeout(() => setNotice(''), 3500);
+  };
+
+  const updateGuestStatus = (guestId: string, status: Guest['bookingStatus']) => {
+    setGuests((prev) => prev.map((guest) => guest.guestId === guestId ? { ...guest, bookingStatus: status } : guest));
+  };
+
+  const handleAddGuest = () => showNotice('Add New Guest is ready for a backend form connection.');
+  const handleEdit = (guest: Guest) => { setSelectedGuest(guest); showNotice(`Editing ${guest.fullName}.`); };
+  const handleDelete = (guest: Guest) => { setGuests((prev) => prev.filter((item) => item.guestId !== guest.guestId)); showNotice(`${guest.fullName} was removed from the guest list.`); };
+  const handleBooking = (guest: Guest) => { setSelectedGuest(guest); showNotice(`Viewing booking ${guest.bookingId}.`); };
+  const handleCheckIn = (guest: Guest) => { updateGuestStatus(guest.guestId, 'checked_in'); showNotice(`${guest.fullName} has been checked in.`); };
+  const handleCheckOut = (guest: Guest) => { updateGuestStatus(guest.guestId, 'checked_out'); showNotice(`${guest.fullName} has been checked out.`); };
+  const handleInvoice = (guest: Guest) => showNotice(`Invoice prepared for ${guest.fullName}: KES ${(guest.amountPaid + guest.balance).toLocaleString()}.`);
+
   return (
     <div className="p-5 space-y-5 min-h-screen">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -265,17 +236,11 @@ export default function GuestsPage() {
           <h2 className="text-xl font-bold text-white drop-shadow">Guests</h2>
           <p className="text-white/70 text-sm">Guest records, booking details, payments, and stay history</p>
         </div>
-        <button className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg hover:bg-blue-700">
+        <button onClick={handleAddGuest} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-lg hover:bg-blue-700">
           <Plus className="w-4 h-4" />
           Add New Guest
         </button>
       </div>
-
-      {loadError && (
-        <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
-          {loadError}
-        </div>
-      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatCard label="Total Guests" value={stats.total} icon={<Users className="w-5 h-5" />} className="bg-gradient-to-br from-blue-500 to-indigo-700" />
@@ -313,6 +278,25 @@ export default function GuestsPage() {
           </div>
         </div>
       </div>
+
+      {notice && (
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-blue-700 shadow-sm">
+          {notice}
+        </div>
+      )}
+
+      {selectedGuest && (
+        <div className="rounded-2xl bg-white p-4 text-sm text-gray-700 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-bold text-gray-900">{selectedGuest.fullName}</p>
+              <p className="mt-1">Booking {selectedGuest.bookingId} - Room {selectedGuest.roomNumber} - {formatStatus(selectedGuest.bookingStatus)}</p>
+              <p className="mt-1 text-gray-500">{selectedGuest.notes}</p>
+            </div>
+            <button onClick={() => setSelectedGuest(null)} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-200">Close</button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {filteredGuests.map((guest) => (
@@ -385,27 +369,27 @@ export default function GuestsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 xl:w-52">
-                <button className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-gray-100 px-2 text-xs font-semibold text-gray-700 hover:bg-gray-200">
+                <button onClick={() => handleEdit(guest)} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-gray-100 px-2 text-xs font-semibold text-gray-700 hover:bg-gray-200">
                   <Edit className="w-3.5 h-3.5" />
                   Edit
                 </button>
-                <button className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-red-50 px-2 text-xs font-semibold text-red-600 hover:bg-red-100">
+                <button onClick={() => handleDelete(guest)} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-red-50 px-2 text-xs font-semibold text-red-600 hover:bg-red-100">
                   <Trash2 className="w-3.5 h-3.5" />
                   Delete
                 </button>
-                <button className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-blue-50 px-2 text-xs font-semibold text-blue-600 hover:bg-blue-100">
+                <button onClick={() => handleBooking(guest)} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-blue-50 px-2 text-xs font-semibold text-blue-600 hover:bg-blue-100">
                   <Eye className="w-3.5 h-3.5" />
                   Booking
                 </button>
-                <button className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-100">
+                <button onClick={() => handleCheckIn(guest)} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 text-xs font-semibold text-emerald-600 hover:bg-emerald-100">
                   <LogIn className="w-3.5 h-3.5" />
                   Check-in
                 </button>
-                <button className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-rose-50 px-2 text-xs font-semibold text-rose-600 hover:bg-rose-100">
+                <button onClick={() => handleCheckOut(guest)} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-rose-50 px-2 text-xs font-semibold text-rose-600 hover:bg-rose-100">
                   <LogOut className="w-3.5 h-3.5" />
                   Check-out
                 </button>
-                <button className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 text-xs font-semibold text-slate-700 hover:bg-slate-200">
+                <button onClick={() => handleInvoice(guest)} className="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-slate-100 px-2 text-xs font-semibold text-slate-700 hover:bg-slate-200">
                   <FileText className="w-3.5 h-3.5" />
                   Invoice
                 </button>
