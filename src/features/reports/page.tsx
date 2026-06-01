@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -37,6 +37,7 @@ import {
   mockRoomStatus,
   mockStats,
 } from '@/lib/mockData';
+import { useReportStore } from '@/app/store/reportStore';
 import { cn } from '@/lib/utils';
 
 const bookingTrend = [
@@ -91,10 +92,15 @@ function SectionCard({ title, subtitle, icon, children, className }: { title: st
 }
 
 export default function ReportsPage() {
+  const fetchReports = useReportStore((state) => state.fetchReports);
   const [dateRange, setDateRange] = useState('month');
   const [roomType, setRoomType] = useState('all');
   const [bookingStatus, setBookingStatus] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
+
+  useEffect(() => {
+    void fetchReports('2026-06-01', '2026-06-01', 'day');
+  }, [fetchReports]);
 
   const rangeMultiplier = useMemo(() => ({ today: 0.15, week: 0.52, month: 1, year: 5.1 })[dateRange] ?? 1, [dateRange]);
   const adjustedRevenue = Math.round(mockStats.revenueToday * rangeMultiplier);

@@ -24,6 +24,13 @@ export type PaginatedResponse<T> = {
   data: T[];
 };
 
+export type ApiResponse<T> = {
+  success?: boolean;
+  status?: string;
+  message?: string;
+  data: T;
+};
+
 export type ApiRoom = {
   id: number;
   room_number: string;
@@ -107,7 +114,7 @@ export type TapeChartResponse = {
 };
 
 export function fetchDashboardStats() {
-  return api.get<DashboardStatsResponse>('/dashboard/stats');
+  return api.get<ApiResponse<DashboardStatsResponse> | DashboardStatsResponse>('/dashboard/stats');
 }
 
 export function fetchRooms(params?: Record<string, string | number>) {
@@ -123,7 +130,7 @@ export function fetchBookings(params?: Record<string, string | number>) {
 }
 
 export function fetchTapeChart(startDate: string, endDate: string) {
-  return api.get<TapeChartResponse>('/tape-chart', {
+  return api.get<ApiResponse<TapeChartResponse> | TapeChartResponse>('/booking-calendar', {
     params: {
       start_date: startDate,
       end_date: endDate,
@@ -132,19 +139,19 @@ export function fetchTapeChart(startDate: string, endDate: string) {
 }
 
 export function fetchHousekeepingTasks(params?: Record<string, string | number>) {
-  return api.get<PaginatedResponse<ApiHousekeepingTask> | ApiHousekeepingTask[]>('/housekeeping/tasks', { params });
+  return api.get<ApiResponse<ApiHousekeepingTask[]> | PaginatedResponse<ApiHousekeepingTask> | ApiHousekeepingTask[]>('/housekeeping-tasks', { params });
 }
 
 export function updateHousekeepingTask(taskId: number, data: Record<string, unknown>) {
-  return api.patch<ApiHousekeepingTask>(`/housekeeping/tasks/${taskId}`, data);
+  return api.patch<ApiResponse<ApiHousekeepingTask> | ApiHousekeepingTask>(`/housekeeping-tasks/${taskId}`, data);
 }
 
 export function completeHousekeepingTask(taskId: number) {
-  return api.patch<ApiHousekeepingTask>(`/housekeeping/tasks/${taskId}/complete`);
+  return api.patch<ApiResponse<ApiHousekeepingTask> | ApiHousekeepingTask>(`/housekeeping-tasks/${taskId}`, { status: 'completed' });
 }
 
 export function fetchReports(startDate: string, endDate: string, groupBy = 'day') {
-  return api.get('/reports', {
+  return api.get('/reports/revenue', {
     params: {
       start_date: startDate,
       end_date: endDate,
@@ -155,4 +162,12 @@ export function fetchReports(startDate: string, endDate: string, groupBy = 'day'
 
 export function fetchSettings() {
   return api.get<Record<string, string>>('/settings');
+}
+
+export function fetchAbout() {
+  return api.get('/about');
+}
+
+export function fetchContactInfo() {
+  return api.get('/contact');
 }

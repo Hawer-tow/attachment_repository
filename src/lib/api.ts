@@ -23,7 +23,11 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      localStorage.removeItem('staysync-auth');
+
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

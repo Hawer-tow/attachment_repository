@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Award, BedDouble, Building2, ShieldCheck, Sparkles, Users } from 'lucide-react';
+import { fetchAbout } from '@/lib/protectedEndpoints';
 
 const values = [
   { title: 'Efficient operations', body: 'StaySync brings bookings, rooms, housekeeping, guests, and reports into one connected workspace.', icon: Sparkles },
@@ -7,6 +9,10 @@ const values = [
 ];
 
 export default function AboutPage() {
+  useEffect(() => {
+    void fetchAbout();
+  }, []);
+
   return (
     <div className="min-h-screen space-y-5 p-5 lg:p-6">
       <section className="rounded-3xl border border-white/16 bg-slate-950/64 p-6 text-white shadow-2xl shadow-black/20 backdrop-blur-2xl">

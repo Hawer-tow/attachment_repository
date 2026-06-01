@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { addDays, differenceInDays, format, isToday, isWeekend, startOfDay } from 'date-fns';
 import {
@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { mockArrivals, mockStats, mockTapeChartRooms } from '@/lib/mockData';
+import { useTapeChartStore } from '@/app/store/tapeChartStore';
 import { cn } from '@/lib/utils';
 
 const DAYS = 30;
@@ -178,6 +179,7 @@ function Detail({ icon, label, value }: { icon: React.ReactNode; label: string; 
 }
 
 export default function TapeChartPage() {
+  const fetchTapeChart = useTapeChartStore((state) => state.fetchTapeChart);
   const [rooms, setRooms] = useState<Room[]>(mockTapeChartRooms as Room[]);
   const [startDate, setStartDate] = useState(() => startOfDay(new Date('2026-05-13')));
   const [selectedBooking, setSelectedBooking] = useState<{ booking: Booking; room: Room } | null>(null);
@@ -190,6 +192,10 @@ export default function TapeChartPage() {
   const dates = Array.from({ length: DAYS }, (_, i) => addDays(startDate, i));
   const roomTypes = Array.from(new Set(rooms.map((room) => room.type_name)));
   const floorOptions = Array.from(new Set(rooms.map((room) => room.floor))).sort();
+
+  useEffect(() => {
+    void fetchTapeChart(format(startDate, 'yyyy-MM-dd'), format(addDays(startDate, DAYS - 1), 'yyyy-MM-dd'));
+  }, [fetchTapeChart, startDate]);
 
   const filteredRooms = rooms.filter((room) => {
     const matchesType = roomTypeFilter === 'all' || room.type_name === roomTypeFilter;

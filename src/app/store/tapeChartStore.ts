@@ -18,7 +18,8 @@ export const useTapeChartStore = create<TapeChartStore>((set) => ({
 
     try {
       const response = await fetchTapeChart(startDate, endDate);
-      set({ data: response.data, isLoading: false });
+      const payload = 'data' in response.data ? response.data.data : response.data;
+      set({ data: payload, isLoading: false });
     } catch {
       set({
         isLoading: false,

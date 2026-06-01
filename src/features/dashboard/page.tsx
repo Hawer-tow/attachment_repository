@@ -20,6 +20,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useAuthStore } from '@/app/store/authStore';
+import { useDashboardStore } from '@/app/store/dashboardStore';
 import { mockArrivals, mockNotifications, mockStats } from '@/lib/mockData';
 import { cn } from '@/lib/utils';
 
@@ -109,7 +110,12 @@ function KpiCard({
 
 export default function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const fetchStats = useDashboardStore((state) => state.fetchStats);
   const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    void fetchStats();
+  }, [fetchStats]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
   CalendarDays,
@@ -17,6 +17,8 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useGuestStore } from '@/app/store/guestStore';
+import type { ApiGuest } from '@/lib/protectedEndpoints';
 
 const INITIAL_GUESTS = [
   {
@@ -148,6 +150,39 @@ const INITIAL_GUESTS = [
 
 type Guest = (typeof INITIAL_GUESTS)[number];
 
+function mapApiGuest(guest: ApiGuest): Guest {
+  const booking = guest.bookings?.[0];
+  const firstName = guest.first_name ?? '';
+  const lastName = guest.last_name ?? '';
+  const fullName = [firstName, lastName].filter(Boolean).join(' ') || `Guest ${guest.id}`;
+
+  return {
+    guestId: `GST-${String(guest.id).padStart(3, '0')}`,
+    fullName,
+    gender: '',
+    nationality: guest.country ?? '',
+    phone: guest.phone ?? '',
+    email: guest.email ?? '',
+    idNumber: guest.id_number ?? '',
+    address: guest.address ?? '',
+    bookingId: booking?.booking_reference ?? '',
+    roomNumber: booking?.room?.room_number ?? '',
+    roomType: booking?.room?.room_type?.name ?? booking?.room?.roomType?.name ?? '',
+    checkIn: booking?.check_in_date ? String(booking.check_in_date).slice(0, 10) : '',
+    checkOut: booking?.check_out_date ? String(booking.check_out_date).slice(0, 10) : '',
+    numberOfGuests: (booking?.num_adults ?? 0) + (booking?.num_children ?? 0),
+    bookingStatus: booking?.status ?? 'reserved',
+    paymentStatus: 'pending',
+    amountPaid: 0,
+    balance: Number(booking?.total_price ?? 0),
+    paymentMethod: 'Pending',
+    stayHistory: guest.total_stays ?? guest.bookings?.length ?? 0,
+    previousBookings: guest.bookings?.slice(1).map((item) => item.booking_reference) ?? [],
+    vip: false,
+    notes: '',
+  };
+}
+
 const BOOKING_STATUS_STYLES: Record<string, string> = {
   checked_in: 'bg-emerald-100 text-emerald-700',
   reserved: 'bg-blue-100 text-blue-700',
@@ -187,11 +222,23 @@ function StatCard({ label, value, icon, className }: { label: string; value: str
 }
 
 export default function GuestsPage() {
+  const apiGuests = useGuestStore((state) => state.guests);
+  const fetchApiGuests = useGuestStore((state) => state.fetchGuests);
   const [guests, setGuests] = useState<Guest[]>(INITIAL_GUESTS);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [notice, setNotice] = useState('');
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+
+  useEffect(() => {
+    void fetchApiGuests();
+  }, [fetchApiGuests]);
+
+  useEffect(() => {
+    if (apiGuests.length > 0) {
+      setGuests(apiGuests.map(mapApiGuest));
+    }
+  }, [apiGuests]);
 
   const filteredGuests = guests.filter((guest) => {
     const query = search.toLowerCase();

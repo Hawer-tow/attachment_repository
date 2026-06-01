@@ -18,7 +18,8 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
 
     try {
       const response = await fetchDashboardStats();
-      set({ stats: response.data, isLoading: false });
+      const payload = 'data' in response.data ? response.data.data : response.data;
+      set({ stats: payload, isLoading: false });
     } catch {
       set({
         isLoading: false,

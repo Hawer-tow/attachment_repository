@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Mail, MapPin, MessageSquare, Phone, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fetchContactInfo } from '@/lib/protectedEndpoints';
 
 const initialForm = {
   name: '',
@@ -16,6 +17,10 @@ export default function ContactPage() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [sentMessage, setSentMessage] = useState('');
+
+  useEffect(() => {
+    void fetchContactInfo();
+  }, []);
 
   const isComplete = useMemo(() => Object.values(form).every((value) => value.trim().length > 0), [form]);
 

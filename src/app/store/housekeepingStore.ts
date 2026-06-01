@@ -38,8 +38,9 @@ export const useHousekeepingStore = create<HousekeepingStore>((set) => ({
   updateTask: async (taskId, data) => {
     try {
       const response = await updateHousekeepingTask(taskId, data);
+      const payload = 'data' in response.data ? response.data.data : response.data;
       set((state) => ({
-        tasks: state.tasks.map((task) => (task.id === taskId ? response.data : task)),
+        tasks: state.tasks.map((task) => (task.id === taskId ? payload : task)),
         error: '',
       }));
     } catch {
@@ -51,8 +52,9 @@ export const useHousekeepingStore = create<HousekeepingStore>((set) => ({
   completeTask: async (taskId) => {
     try {
       const response = await completeHousekeepingTask(taskId);
+      const payload = 'data' in response.data ? response.data.data : response.data;
       set((state) => ({
-        tasks: state.tasks.map((task) => (task.id === taskId ? response.data : task)),
+        tasks: state.tasks.map((task) => (task.id === taskId ? payload : task)),
         error: '',
       }));
     } catch {
