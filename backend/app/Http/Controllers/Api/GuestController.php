@@ -11,7 +11,7 @@ class GuestController extends Controller
     // GET ALL GUESTS
     public function index()
     {
-        return $this->success('Guests retrieved successfully', Guest::latest()->get());
+        return $this->success('Guests retrieved successfully', Guest::with(['bookings.room.roomType'])->latest()->get());
     }
 
     // STORE GUEST

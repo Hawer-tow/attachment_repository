@@ -14,10 +14,12 @@ const queryClient = new QueryClient({
 export { queryClient };
 
 export function Providers({ children }: { children: ReactNode }) {
-  const theme = useUIStore((s: { theme: string }) => s.theme);
+  const theme = useUIStore((s) => s.theme);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    const root = document.documentElement;
+    root.classList.toggle('dark', theme === 'dark');
+    root.style.colorScheme = theme;
   }, [theme]);
 
   return (

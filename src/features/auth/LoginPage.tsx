@@ -53,7 +53,7 @@ export default function LoginPage() {
                 <input
                   id="email" type="email" value={email}
                   onChange={(e) => setEmail(e.target.value)} required
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
               <div>
@@ -61,7 +61,7 @@ export default function LoginPage() {
                 <input
                   id="password" type="password" value={password}
                   onChange={(e) => setPassword(e.target.value)} required
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
               <button
@@ -72,7 +72,8 @@ export default function LoginPage() {
               </button>
             </form>
             <p className="text-xs text-muted-foreground text-center mt-4">
-              Demo: admin@staysync.test / password
+              Demo accounts: admin / manager / receptionist / housekeeper<br />
+              <span className="opacity-70">password: "password" for all</span>
             </p>
           </div>
         </div>

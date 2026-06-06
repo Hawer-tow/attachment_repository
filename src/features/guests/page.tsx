@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   BadgeCheck,
   CalendarDays,
@@ -268,7 +269,8 @@ export default function GuestsPage() {
   const apiGuests = useGuestStore((state) => state.guests);
   const storeError = useGuestStore((state) => state.error);
   const fetchApiGuests = useGuestStore((state) => state.fetchGuests);
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [notice, setNotice] = useState('');
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
@@ -282,13 +284,17 @@ export default function GuestsPage() {
   }, [fetchApiGuests]);
 
   const filteredGuests = guests.filter((guest) => {
-    const query = search.toLowerCase();
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
     const matchesSearch =
       guest.fullName.toLowerCase().includes(query) ||
-      guest.roomNumber.includes(search) ||
+      guest.roomNumber.toLowerCase().includes(query) ||
       guest.guestId.toLowerCase().includes(query) ||
       guest.bookingId.toLowerCase().includes(query) ||
-      guest.phone.includes(search);
+      guest.phone.toLowerCase().includes(query) ||
+      guest.email.toLowerCase().includes(query) ||
+      guest.roomType.toLowerCase().includes(query) ||
+      guest.idNumber.toLowerCase().includes(query);
     const matchesStatus = statusFilter === 'all' || guest.bookingStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -377,13 +383,24 @@ export default function GuestsPage() {
       <div className="rounded-2xl bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 w-4 h-4 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by guest name, room number, guest ID, phone, or booking ID..."
-              className="h-10 w-full rounded-xl border border-gray-200 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="Search by guest name, room number, guest ID, phone, booking ID..."
+              aria-label="Search guests"
+              className="h-10 w-full rounded-xl border border-gray-200 pl-9 pr-9 text-sm outline-none focus:ring-2 focus:ring-blue-200"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-gray-200 hover:text-gray-700"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Filter className="w-4 h-4 text-gray-400" />
@@ -528,7 +545,20 @@ export default function GuestsPage() {
 
       {filteredGuests.length === 0 && (
         <div className="rounded-2xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
-          {guests.length === 0 ? 'No guests yet. Add a guest to get started.' : 'No guests match the selected search or filter.'}
+          {guests.length === 0
+            ? 'No guests yet. Add a guest to get started.'
+            : `No guests match ${search.trim() ? `the search “${search.trim()}”` : 'the selected filter'}.`}
+          {(search.trim() || statusFilter !== 'all') && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setStatusFilter('all'); }}
+                className="text-xs font-semibold text-blue-600 hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
         </div>
       )}
 

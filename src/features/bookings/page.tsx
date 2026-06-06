@@ -6,10 +6,13 @@ import {
   CheckCircle, XCircle, Clock, Phone, CreditCard,
   Hash, Users, Baby, FileText, ChevronDown,UserCheck,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { type ApiBooking, createBooking, cancelBooking, fetchRooms, fetchGuests, createGuest, type ApiRoom, type ApiGuest } from '@/lib/protectedEndpoints';
 import { useBookingsApiStore } from '@/app/store/bookingsApiStore';
 import { useAuthStore } from '@/app/store/authStore';
+import { openStaffInvoice } from '@/lib/invoiceApi';
+import { DateRangePicker } from '@/components/ui/DateRangePicker';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Booking {
@@ -120,13 +123,14 @@ function calcNights(checkIn: string, checkOut: string) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function BookingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [bookings, setBookings]         = useState<Booking[]>([]);
   const apiBookings = useBookingsApiStore((state) => state.bookings);
   const loadError = useBookingsApiStore((state) => state.error);
   const fetchBookings = useBookingsApiStore((state) => state.fetchBookings);
   const isAuthed = useAuthStore((state) => state.isAuthenticated);
   const [rooms, setRooms]               = useState<ApiRoom[]>([]);
-  const [search, setSearch]             = useState('');
+  const [search, setSearch]             = useState(() => searchParams.get('q') ?? '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter]     = useState('');
   const [typeFilter, setTypeFilter]     = useState('all');
@@ -295,9 +299,15 @@ export default function BookingsPage() {
 
   // Filters
   const filtered = bookings.filter((b) => {
-    const matchSearch = b.guestName.toLowerCase().includes(search.toLowerCase()) ||
-                        b.id.toLowerCase().includes(search.toLowerCase()) ||
-                        b.roomNumber.includes(search);
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const matchSearch =
+      b.guestName.toLowerCase().includes(q) ||
+      b.id.toLowerCase().includes(q) ||
+      b.roomNumber.toLowerCase().includes(q) ||
+      b.roomType.toLowerCase().includes(q) ||
+      b.phone.toLowerCase().includes(q) ||
+      b.email.toLowerCase().includes(q);
     const matchStatus = statusFilter === 'all' || b.bookingStatus === statusFilter;
     const matchType   = typeFilter === 'all' || b.roomType === typeFilter;
     const matchDate   = !dateFilter || b.checkIn === dateFilter || b.checkOut === dateFilter;
@@ -349,13 +359,31 @@ export default function BookingsPage() {
       <div className="bg-white rounded-2xl p-4 shadow-sm space-y-3">
         <div className="flex gap-3 flex-wrap items-center">
           <div className="relative flex-1 min-w-48">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search guest name, booking ID, room..."
-              className="w-full pl-9 pr-3 h-9 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (searchParams.get('q')) setSearchParams((params) => {
+                  const next = new URLSearchParams(params);
+                  next.delete('q');
+                  return next;
+                }, { replace: true });
+              }}
+              placeholder="Search guest name, booking ID, room, phone, email..."
+              aria-label="Search bookings"
+              className="w-full pl-9 pr-9 h-9 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-gray-200 hover:text-gray-700"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <input
             type="date"
@@ -448,7 +476,7 @@ export default function BookingsPage() {
                       <button onClick={() => setViewBooking(b)} className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors" title="View">
                         <Eye className="w-3.5 h-3.5" />
                       </button>
-                      <button className="w-7 h-7 rounded-lg bg-gray-50 text-gray-500 flex items-center justify-center hover:bg-gray-100 transition-colors" title="Print Invoice">
+                      <button onClick={() => openStaffInvoice(b.numericId, 'invoice').catch((e) => window.alert(e.message ?? 'Could not open invoice'))} className="w-7 h-7 rounded-lg bg-gray-50 text-gray-500 flex items-center justify-center hover:bg-gray-100 transition-colors" title="Print Invoice">
                         <Printer className="w-3.5 h-3.5" />
                       </button>
                       <button className="w-7 h-7 rounded-lg bg-green-50 text-green-500 flex items-center justify-center hover:bg-green-100 transition-colors" title="Send Email">
@@ -469,7 +497,20 @@ export default function BookingsPage() {
           {filtered.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               <BedDouble className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No bookings found</p>
+              <p className="text-sm">
+                {search.trim() || statusFilter !== 'all' || typeFilter !== 'all' || dateFilter
+                  ? `No bookings match the current filters${search.trim() ? ` (search: “${search.trim()}”)` : ''}.`
+                  : 'No bookings found'}
+              </p>
+              {(search.trim() || statusFilter !== 'all' || typeFilter !== 'all' || dateFilter) && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setStatusFilter('all'); setTypeFilter('all'); setDateFilter(''); }}
+                  className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
+                >
+                  Clear all filters
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -537,15 +578,15 @@ export default function BookingsPage() {
                     Booking Information
                   </h4>
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">Check-in Date *</label>
-                      <input type="date" value={form.checkIn} onChange={(e) => handleFormChange('checkIn', e.target.value)}
-                        className="w-full h-9 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">Check-out Date *</label>
-                      <input type="date" value={form.checkOut} onChange={(e) => handleFormChange('checkOut', e.target.value)}
-                        className="w-full h-9 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <div className="col-span-2">
+                      <DateRangePicker
+                        checkIn={form.checkIn}
+                        checkOut={form.checkOut}
+                        onCheckInChange={(v) => handleFormChange('checkIn', v)}
+                        onCheckOutChange={(v) => handleFormChange('checkOut', v)}
+                        label1="Check-in Date"
+                        label2="Check-out Date"
+                      />
                     </div>
                     <div>
                       <label className="text-xs font-medium text-gray-500 block mb-1">Adults</label>
@@ -773,8 +814,8 @@ export default function BookingsPage() {
                 <button className="flex-1 h-9 bg-green-500 text-white rounded-xl text-xs font-medium hover:bg-green-600 flex items-center justify-center gap-1">
                   <UserCheck className="w-3.5 h-3.5" /> Check In
                 </button>
-                <button className="flex-1 h-9 bg-gray-100 text-gray-600 rounded-xl text-xs font-medium hover:bg-gray-200 flex items-center justify-center gap-1">
-                  <Printer className="w-3.5 h-3.5" /> Invoice
+                <button onClick={() => openStaffInvoice(viewBooking.numericId, viewBooking.paymentStatus === 'paid' ? 'receipt' : 'invoice').catch((e) => window.alert(e.message ?? 'Could not open invoice'))} className="flex-1 h-9 bg-gray-100 text-gray-600 rounded-xl text-xs font-medium hover:bg-gray-200 flex items-center justify-center gap-1">
+                  <Printer className="w-3.5 h-3.5" /> {viewBooking.paymentStatus === 'paid' ? 'Receipt' : 'Invoice'}
                 </button>
               </div>
             </motion.div>

@@ -11,21 +11,43 @@ class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
         $this->call(StaySyncSeeder::class);
 
-        User::updateOrCreate(
-            ['email' => 'admin@staysync.test'],
+        $users = [
             [
-                'name' => 'StaySync Admin',
-                'password' => Hash::make('password'),
-                'role' => 'admin',
-                'email_verified_at' => now(),
+                'name'  => 'StaySync Admin',
+                'email' => 'admin@staysync.test',
+                'role'  => 'admin',
             ],
-        );
+            [
+                'name'  => 'StaySync Manager',
+                'email' => 'manager@staysync.test',
+                'role'  => 'manager',
+            ],
+            [
+                'name'  => 'StaySync Receptionist',
+                'email' => 'receptionist@staysync.test',
+                'role'  => 'receptionist',
+            ],
+            [
+                'name'  => 'StaySync Housekeeper',
+                'email' => 'housekeeper@staysync.test',
+                'role'  => 'housekeeper',
+            ],
+        ];
+
+        foreach ($users as $row) {
+            User::updateOrCreate(
+                ['email' => $row['email']],
+                [
+                    'name'              => $row['name'],
+                    'password'          => Hash::make('password'),
+                    'role'              => $row['role'],
+                    'email_verified_at' => now(),
+                ],
+            );
+        }
     }
 }

@@ -184,6 +184,28 @@ export function fetchDashboardStats() {
   return api.get<ApiResponse<DashboardStatsResponse> | DashboardStatsResponse>('/dashboard/stats');
 }
 
+export type SearchHit = {
+  type: 'guest' | 'booking' | 'room';
+  id: number;
+  label: string;
+  sub?: string;
+  status?: string;
+  stays?: number;
+  last_booking_reference?: string;
+};
+
+export type SearchResponse = {
+  query: string;
+  guests: SearchHit[];
+  bookings: SearchHit[];
+  rooms: SearchHit[];
+  total: number;
+};
+
+export function searchAll(q: string, limit = 8) {
+  return api.get<ApiResponse<SearchResponse> | SearchResponse>('/search', { params: { q, limit } });
+}
+
 export function fetchRooms(params?: Record<string, string | number>) {
   return api.get<PaginatedResponse<ApiRoom> | ApiRoom[]>('/rooms', { params });
 }
@@ -282,10 +304,70 @@ export function fetchSettings() {
   return api.get<Record<string, string>>('/settings');
 }
 
+export type ApiRateOverride = {
+  id: number;
+  room_type_id: number;
+  start_date: string;
+  end_date: string;
+  price: number;
+  roomType?: { id: number; name: string };
+  room_type?: { id: number; name: string };
+};
+
+export function fetchRateOverrides() {
+  return api.get<PaginatedResponse<ApiRateOverride> | ApiRateOverride[]>('/rate-overrides');
+}
+
+export function createRateOverride(payload: Record<string, unknown>) {
+  return api.post<ApiResponse<ApiRateOverride> | ApiRateOverride>('/rate-overrides', payload);
+}
+
+export function updateRateOverride(id: number, payload: Record<string, unknown>) {
+  return api.put<ApiResponse<ApiRateOverride> | ApiRateOverride>(`/rate-overrides/${id}`, payload);
+}
+
+export function deleteRateOverride(id: number) {
+  return api.delete<ApiResponse<unknown> | null>(`/rate-overrides/${id}`);
+}
+
 export function fetchAbout() {
   return api.get('/about');
 }
 
 export function fetchContactInfo() {
   return api.get('/contact');
+}
+
+export type StaffRoomServiceOrder = {
+  id: number;
+  reference: string;
+  booking_id: number | null;
+  guest_name: string;
+  room_number: string | null;
+  phone: string | null;
+  status: 'received' | 'preparing' | 'on_the_way' | 'delivered' | 'cancelled';
+  total: string;
+  notes: string | null;
+  handled_by: number | null;
+  delivered_at: string | null;
+  created_at: string;
+  updated_at: string;
+  items: Array<{
+    id: number;
+    menu_item_id: number;
+    item_name: string;
+    unit_price: string;
+    quantity: number;
+    line_total: string;
+  }>;
+  booking?: { id: number; booking_reference: string; guest?: { first_name?: string; last_name?: string } };
+  handler?: { id: number; name: string } | null;
+};
+
+export function fetchRoomServiceOrders(params?: Record<string, string | number>) {
+  return api.get<{ success: boolean; data: { data: StaffRoomServiceOrder[] } | StaffRoomServiceOrder[] }>('/room-service-orders', { params });
+}
+
+export function updateRoomServiceOrderStatus(id: number, status: StaffRoomServiceOrder['status']) {
+  return api.patch<{ success: boolean; data: StaffRoomServiceOrder }>(`/room-service-orders/${id}`, { status });
 }

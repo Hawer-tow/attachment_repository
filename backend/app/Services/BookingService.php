@@ -6,11 +6,14 @@ use App\Models\Booking;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\RateOverride;
+use App\Services\SettingService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class BookingService
 {
+    public function __construct(private SettingService $settings) {}
+
     public function createBooking(array $data)
     {
         return DB::transaction(function () use ($data) {
@@ -104,6 +107,9 @@ class BookingService
         $start = Carbon::parse($checkIn);
         $end = Carbon::parse($checkOut);
 
+        $taxRate = $this->settings->getFloat('tax.rate', 0.16);
+        $weekendSurcharge = $this->settings->getFloat('pricing.weekend_surcharge', 20.0);
+
         $subtotal = 0;
 
         for ($date = $start->copy(); $date->lt($end); $date->addDay()) {
@@ -119,25 +125,18 @@ class BookingService
                 ->whereDate('end_date', '>=', $date)
                 ->first();
 
-            /*
-            |--------------------------------------------------------------------------
-            | Weekend pricing example
-            |--------------------------------------------------------------------------
-            */
-
             $dailyRate = $override
                 ? $override->price
                 : $basePrice;
 
-            // Weekend surcharge example
             if ($date->isWeekend()) {
-                $dailyRate += 20;
+                $dailyRate += $weekendSurcharge;
             }
 
             $subtotal += $dailyRate;
         }
 
-        $taxAmount = $subtotal * 0.16;
+        $taxAmount = $subtotal * $taxRate;
 
         $totalPrice = $subtotal + $taxAmount;
 

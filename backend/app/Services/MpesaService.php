@@ -58,7 +58,7 @@ class MpesaService
                 'TransactionDesc'   => "Payment for {$reference}",
             ]);
 
-        return $response->json();
+        return $response->json() ?? [];
     }
 
     // Step 3: Handle Callback from Safaricom

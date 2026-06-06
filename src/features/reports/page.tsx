@@ -20,11 +20,13 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Loader2,
   Printer,
   Receipt,
   TrendingUp,
 } from 'lucide-react';
 import { useReportStore } from '@/app/store/reportStore';
+import { openReportPdf, type ReportType } from '@/lib/reportsApi';
 import { cn } from '@/lib/utils';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -62,7 +64,10 @@ export default function ReportsPage() {
   const isLoading = useReportStore((state) => state.isLoading);
   const error = useReportStore((state) => state.error);
   const fetchReports = useReportStore((state) => state.fetchReports);
-  const [dateRange, setDateRange] = useState('month');
+  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'year'>('month');
+  const [pdfType, setPdfType] = useState<ReportType>('full');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
 
   useEffect(() => {
     void fetchReports();
@@ -135,8 +140,17 @@ export default function ReportsPage() {
     downloadReport('staysync-report.csv', rows.map((row) => row.join(',')).join('\n'), 'text/csv;charset=utf-8');
   };
 
-  const exportPdf = () => {
-    window.print();
+  const exportPdf = async () => {
+    setPdfLoading(true);
+    setPdfError('');
+    try {
+      await openReportPdf(pdfType, dateRange);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not generate the PDF.';
+      setPdfError(msg);
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   return (
@@ -146,9 +160,20 @@ export default function ReportsPage() {
           <h2 className="text-xl font-bold text-white drop-shadow">Reports</h2>
           <p className="text-white/70 text-sm">Revenue, booking, guest, and room analytics for management</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={exportPdf} className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-lg hover:bg-red-700">
-            <FileText className="w-4 h-4" />
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={pdfType}
+            onChange={(e) => setPdfType(e.target.value as ReportType)}
+            aria-label="Report type for PDF export"
+            className="h-10 rounded-xl border border-white/15 bg-white/10 px-3 text-sm font-medium text-white shadow-lg focus:outline-none focus:ring-2 focus:ring-cyan-200"
+          >
+            <option value="full" className="text-slate-900">Full report</option>
+            <option value="revenue" className="text-slate-900">Revenue only</option>
+            <option value="bookings" className="text-slate-900">Bookings only</option>
+            <option value="occupancy" className="text-slate-900">Occupancy only</option>
+          </select>
+          <button onClick={exportPdf} disabled={pdfLoading} className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-lg hover:bg-red-700 disabled:opacity-60">
+            {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
             Export PDF
           </button>
           <button onClick={exportExcel} className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-lg hover:bg-emerald-700">
@@ -162,9 +187,9 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {error && (
+      {(error || pdfError) && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 shadow-sm">
-          {error}
+          {error || pdfError}
         </div>
       )}
 
@@ -172,7 +197,7 @@ export default function ReportsPage() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <label className="space-y-1">
             <span className="flex items-center gap-1 text-xs font-semibold text-gray-500"><CalendarDays className="w-3.5 h-3.5" />Date Range</span>
-            <select value={dateRange} onChange={(event) => setDateRange(event.target.value)} className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-200">
+            <select value={dateRange} onChange={(event) => setDateRange(event.target.value as 'today' | 'week' | 'month' | 'year')} className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-200">
               <option value="month">This Month</option>
               <option value="today">Today</option>
               <option value="week">This Week</option>

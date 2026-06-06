@@ -1,6 +1,28 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+  --color-primary: #0891b2;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f1f5f9;
+  --color-secondary-foreground: #0f172a;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-accent: #f1f5f9;
+  --color-accent-foreground: #0f172a;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e2e8f0;
+  --color-input: #e2e8f0;
+  --color-ring: #0891b2;
+}
+
+.dark {
   --color-background: #071425;
   --color-foreground: #e7eef8;
   --color-card: rgba(255,255,255,0.1);
@@ -30,18 +52,22 @@ body,
 #root {
   width: 100%;
   min-height: 100%;
-  background: #071425;
 }
 
 html {
+  color-scheme: light;
+}
+html.dark {
   color-scheme: dark;
 }
 
 body {
   margin: 0;
+  background-color: var(--color-background);
   color: var(--color-foreground);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   text-rendering: geometricPrecision;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 button,
@@ -59,7 +85,7 @@ a {
 input,
 select,
 textarea {
-  color: #0f172a;
+  color: inherit;
 }
 
 ::selection {
@@ -72,23 +98,22 @@ textarea {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255,255,255,0.05);
+  background: rgba(0, 0, 0, 0.04);
+}
+.dark ::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148,163,184,0.45);
+  background: rgba(148, 163, 184, 0.45);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(34,211,238,0.7);
+  background: rgba(34, 211, 238, 0.7);
   background-clip: content-box;
-}
-
-.dark body {
-  background: #030712;
 }
 
 @media (max-width: 768px) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { BarChart3, Bell, CheckCheck, ClipboardCheck, Menu, Moon, Sparkles, Sun, UserCog, X } from 'lucide-react';
 import { useUIStore } from '@/app/store/uiStore';
@@ -34,10 +34,6 @@ export function Header() {
   const { pathname } = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState(NOTIFICATIONS);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
 
   const unreadCount = notifications.filter((notification) => notification.unread).length;
 

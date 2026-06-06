@@ -125,8 +125,13 @@ export default function HousekeepingPage() {
   }, []);
 
   const filtered = tasks.filter((task) => {
-    const normalizedSearch = search.toLowerCase();
-    const matchSearch = task.room.includes(search) || task.type.toLowerCase().includes(normalizedSearch);
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+    const matchSearch =
+      task.room.toLowerCase().includes(query) ||
+      task.type.toLowerCase().includes(query) ||
+      (task.assignedTo ?? '').toLowerCase().includes(query) ||
+      (task.notes ?? '').toLowerCase().includes(query);
     const matchStatus = statusFilter === 'all' || task.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -268,13 +273,24 @@ export default function HousekeepingPage() {
 
       <div className="bg-white rounded-2xl p-4 shadow-sm flex gap-3 flex-wrap items-center">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search room number or type..."
-            className="w-full pl-9 pr-3 h-9 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+            placeholder="Search room number, task type, assignee..."
+            aria-label="Search housekeeping tasks"
+            className="w-full pl-9 pr-9 h-9 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
           />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition hover:bg-gray-200 hover:text-gray-700"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
           <Filter className="w-4 h-4 text-gray-400" />
@@ -390,7 +406,16 @@ export default function HousekeepingPage() {
       </div>
 
       {filtered.length === 0 && tasks.length > 0 && (
-        <p className="text-center text-sm text-white/70">No housekeeping tasks match the filter.</p>
+        <div className="rounded-2xl bg-white p-6 text-center text-sm text-gray-500 shadow-sm">
+          <p>No housekeeping tasks match {search.trim() ? `the search “${search.trim()}”` : 'the current filter'}.</p>
+          <button
+            type="button"
+            onClick={() => { setSearch(''); setStatusFilter('all'); }}
+            className="mt-2 text-xs font-semibold text-blue-600 hover:underline"
+          >
+            Clear filters
+          </button>
+        </div>
       )}
       {tasks.length === 0 && !loadError && (
         <p className="text-center text-sm text-white/70">No housekeeping tasks yet. Click "New Task" to create one.</p>

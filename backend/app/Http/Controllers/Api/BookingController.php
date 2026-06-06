@@ -234,40 +234,89 @@ class BookingController extends Controller
     }
 
                     //CALENDAR
-public function calendar()
+public function calendar(Request $request)
 {
-    $bookings = Booking::with('room')
-        ->get()
-        ->map(function ($booking) {
+    $startDate = $request->query('start_date') ? Carbon::parse($request->query('start_date'))->startOfDay() : Carbon::today();
+    $endDate   = $request->query('end_date')   ? Carbon::parse($request->query('end_date'))->endOfDay()   : (clone $startDate)->addDays(29)->endOfDay();
 
+    $rooms = Room::with('roomType')
+        ->where('is_active', true)
+        ->orderBy('floor')
+        ->orderBy('room_number')
+        ->get();
+
+    $bookings = Booking::with('guest')
+        ->where(function ($q) use ($startDate, $endDate) {
+            $q->where('check_in_date', '<=', $endDate)
+              ->where('check_out_date', '>=', $startDate);
+        })
+        ->get();
+
+    $payload = $rooms->map(function ($room) use ($bookings) {
+        $roomId = $room->id;
+        $roomNumber = $room->room_number;
+        $roomBookings = $bookings->where('room_id', $roomId)->map(function ($b) use ($roomNumber) {
+            $guestName = $b->guest
+                ? trim(($b->guest->first_name ?? '') . ' ' . ($b->guest->last_name ?? ''))
+                : '';
             return [
-                'room_id' => $booking->room_id,
-                'room_number' => $booking->room->room_number,
-                'status' => $booking->status,
-                'check_in' => $booking->check_in_date,
-                'check_out' => $booking->check_out_date,
+                'room_id'           => $b->room_id,
+                'room_number'       => $roomNumber,
+                'status'            => $b->status,
+                'check_in'          => $b->check_in_date instanceof Carbon
+                    ? $b->check_in_date->toDateString()
+                    : substr((string) $b->check_in_date, 0, 10),
+                'check_out'         => $b->check_out_date instanceof Carbon
+                    ? $b->check_out_date->toDateString()
+                    : substr((string) $b->check_out_date, 0, 10),
+                'booking_id'        => $b->id,
+                'booking_reference' => $b->booking_reference,
+                'guest_name'        => $guestName !== '' ? $guestName : 'Guest',
             ];
-        });
+        })->values();
 
-    return $this->success('Booking calendar retrieved successfully', $bookings);
+        return [
+            'id'        => $roomId,
+            'number'    => $roomNumber,
+            'floor'     => (int) $room->floor,
+            'type_name' => $room->roomType->name ?? 'Untyped',
+            'status'    => $room->status,
+            'bookings'  => $roomBookings,
+        ];
+    })->values();
+
+    $dateRange = [];
+    $cursor = $startDate->copy();
+    while ($cursor->lte($endDate)) {
+        $dateRange[] = $cursor->toDateString();
+        $cursor->addDay();
+    }
+
+    return $this->success('Booking calendar retrieved successfully', [
+        'rooms'       => $payload,
+        'date_range'  => $dateRange,
+    ]);
 }
        //INVOICE
 
-           public function invoice($id)
+    public function invoice(Request $request, $id)
 {
     $booking = Booking::with(
         'guest',
         'room',
+        'roomType',
         'payments'
     )->findOrFail($id);
 
-    $pdf = Pdf::loadView(
-        'invoice',
-        compact('booking')
-    );
+    $type = $request->query('type', 'invoice');
+    if (!in_array($type, ['invoice', 'receipt'], true)) {
+        $type = 'invoice';
+    }
 
-    return $pdf->download(
-        'invoice-'.$booking->booking_reference.'.pdf'
-    );
+    $pdf = Pdf::loadView('invoice', compact('booking', 'type'));
+
+    $filename = ($type === 'receipt' ? 'receipt-' : 'invoice-') . $booking->booking_reference . '.pdf';
+
+    return $pdf->stream($filename);
 }
 }

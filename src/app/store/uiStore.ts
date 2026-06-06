@@ -1,28 +1,42 @@
 import { create } from 'zustand';
 
+type Theme = 'light' | 'dark';
+
 interface UIState {
   sidebarOpen: boolean;
-  theme: 'light' | 'dark';
+  theme: Theme;
   activeModal: string | null;
   modalData: unknown;
   toggleSidebar: () => void;
   toggleTheme: () => void;
+  setTheme: (t: Theme) => void;
   openModal: (name: string, data?: unknown) => void;
   closeModal: () => void;
 }
 
+function readInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'light';
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark') return stored;
+  return 'light';
+}
+
 export const useUIStore = create<UIState>((set, get) => ({
   sidebarOpen: true,
-  theme: (localStorage.getItem('theme') as 'light' | 'dark') ?? 'light',
+  theme: readInitialTheme(),
   activeModal: null,
   modalData: null,
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
+  setTheme: (t) => {
+    localStorage.setItem('theme', t);
+    set({ theme: t });
+  },
+
   toggleTheme: () => {
-    const next = get().theme === 'light' ? 'dark' : 'light';
+    const next: Theme = get().theme === 'light' ? 'dark' : 'light';
     localStorage.setItem('theme', next);
-    document.documentElement.classList.toggle('dark', next === 'dark');
     set({ theme: next });
   },
 

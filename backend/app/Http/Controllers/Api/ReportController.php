@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Payment;
 use App\Models\Room;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -197,5 +199,93 @@ class ReportController extends Controller
             ->sum('total_price');
 
         return $paymentSum + $bookingSum;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PDF EXPORT
+    |--------------------------------------------------------------------------
+    |
+    | Returns a single PDF that mirrors the on-screen reports page. Accepts
+    | ?type=full|revenue|bookings|occupancy so callers can pull just one
+    | section. ?date_range=month|today|week|year drives the section title
+    | and "as of" footer.
+    */
+    public function pdf(Request $request)
+    {
+        $type = $request->query('type', 'full');
+        if (!in_array($type, ['full', 'revenue', 'bookings', 'occupancy'], true)) {
+            $type = 'full';
+        }
+
+        $dateRange = $request->query('date_range', 'month');
+        if (!in_array($dateRange, ['today', 'week', 'month', 'year'], true)) {
+            $dateRange = 'month';
+        }
+
+        $monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        $data = [
+            'type'              => $type,
+            'date_range'        => $dateRange,
+            'generated_at'      => Carbon::now()->format('d M Y, H:i'),
+            'hotel'             => [
+                'name'    => config('app.name', 'StaySync Hotel'),
+                'tagline' => 'Management & Operations Report',
+            ],
+            'month_names'       => $monthNames,
+        ];
+
+        if ($type === 'full' || $type === 'revenue') {
+            $data['revenue'] = [
+                'today'    => $this->revenueForDate(Carbon::today()),
+                'month'    => $this->revenueForPeriod(Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()),
+                'year'     => $this->revenueForPeriod(Carbon::now()->startOfYear(), Carbon::now()->endOfYear()),
+                'total'    => $this->totalRevenue(),
+            ];
+            $data['monthly_revenue'] = $this->monthlyRevenue()->getData()->data;
+        }
+
+        if ($type === 'full' || $type === 'bookings') {
+            $data['bookings'] = [
+                'total'        => Booking::count(),
+                'confirmed'    => Booking::where('status', 'confirmed')->count(),
+                'checked_in'   => Booking::where('status', 'checked_in')->count(),
+                'checked_out'  => Booking::where('status', 'checked_out')->count(),
+                'cancelled'    => Booking::where('status', 'cancelled')->count(),
+                'pending'      => Booking::where('status', 'pending')->count(),
+            ];
+            $data['monthly_bookings'] = $this->monthlyBookings()->getData()->data;
+        }
+
+        if ($type === 'full' || $type === 'occupancy') {
+            $totalRooms   = Room::where('is_active', true)->count();
+            $today        = Carbon::today()->toDateString();
+            $occupiedIds  = Booking::query()
+                ->where('status', '!=', 'cancelled')
+                ->where('check_in_date', '<=', $today)
+                ->where('check_out_date', '>', $today)
+                ->pluck('room_id')
+                ->unique();
+            $occupied     = $occupiedIds->count();
+            $available    = max(0, $totalRooms - $occupied);
+            $rate         = $totalRooms > 0 ? round(($occupied / $totalRooms) * 100, 2) : 0;
+
+            $data['occupancy'] = [
+                'total_rooms'       => $totalRooms,
+                'occupied_rooms'    => $occupied,
+                'available_rooms'   => $available,
+                'dirty_rooms'       => Room::where('status', 'dirty')->count(),
+                'maintenance_rooms' => Room::where('status', 'maintenance')->count(),
+                'occupancy_rate'    => $rate . '%',
+            ];
+        }
+
+        $filename = sprintf('staysync-report-%s-%s.pdf', $type, Carbon::now()->format('Ymd-His'));
+
+        $pdf = Pdf::loadView('reports', $data)
+            ->setPaper('a4', 'portrait');
+
+        return $pdf->stream($filename);
     }
 }

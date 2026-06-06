@@ -4,6 +4,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\RoomController;
+use App\Http\Controllers\Api\RoomStatusLogController;
+use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\GuestController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\DashboardController;
@@ -11,10 +14,15 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\HousekeepingTaskController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RateOverrideController;
+use App\Http\Controllers\Api\RoomServiceOrderStaffController;
 use App\Http\Controllers\Api\RoomTypeController;
 use App\Http\Controllers\Api\AboutController;
 use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\MpesaController;
+use App\Http\Controllers\Api\PortalController;
+use App\Http\Controllers\Api\Portal\ServiceRequestController as PortalServiceRequestController;
+use App\Http\Controllers\Api\Portal\LoyaltyController as PortalLoyaltyController;
+use App\Http\Controllers\Api\ServiceRequestStaffController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,6 +39,24 @@ Route::post('/contact', [ContactController::class, 'store']);
 
 // M-Pesa callback — must be public (Safaricom calls this directly)
 Route::post('/mpesa/callback', [MpesaController::class, 'callback']);
+
+// Guest self-service portal — public landing, room browsing, and booking flow
+Route::prefix('portal')->group(function () {
+    Route::get('room-types',            [PortalController::class, 'getRoomTypes']);
+    Route::get('available-rooms',       [PortalController::class, 'getAvailableRooms']);
+    Route::post('bookings',             [PortalController::class, 'createBooking']);
+    Route::get('bookings/lookup',       [PortalController::class, 'lookupBooking']);
+    Route::post('bookings/{id}/cancel', [PortalController::class, 'cancelBooking']);
+    Route::get('bookings/{id}/invoice', [PortalController::class, 'invoice']);
+    Route::post('pay',                  [PortalController::class, 'stkPush']);
+    Route::post('service-requests',     [PortalServiceRequestController::class, 'store']);
+    Route::get('loyalty',               [PortalLoyaltyController::class, 'show']);
+
+    // Room service
+    Route::get('room-service/menu',                     [PortalController::class, 'roomServiceMenu']);
+    Route::post('room-service/orders',                 [PortalController::class, 'createRoomServiceOrder']);
+    Route::get('room-service/orders/lookup',           [PortalController::class, 'lookupRoomServiceOrder']);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -62,8 +88,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('housekeeping-tasks', HousekeepingTaskController::class);
         Route::apiResource('payments',           PaymentController::class);
 
+        // Concierge / service requests inbox
+        Route::get('service-requests',            [ServiceRequestStaffController::class, 'index']);
+        Route::patch('service-requests/{id}',     [ServiceRequestStaffController::class, 'update']);
+
+        // Room service orders (kitchen fulfilment)
+        Route::get('room-service-orders',         [RoomServiceOrderStaffController::class, 'index']);
+        Route::patch('room-service-orders/{id}',  [RoomServiceOrderStaffController::class, 'update']);
+
+        // Room status change history
+        Route::get('room-status-logs', [RoomStatusLogController::class, 'index']);
+
         // Dashboard
         Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
+
+        // Global search
+        Route::get('/search', [SearchController::class, 'index']);
 
         // Booking Actions
         Route::get('/available-rooms',            [BookingController::class, 'availableRooms']);
@@ -94,6 +134,11 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/occupancy',        [ReportController::class, 'occupancy']);
             Route::get('/monthly-revenue',  [ReportController::class, 'monthlyRevenue']);
             Route::get('/monthly-bookings', [ReportController::class, 'monthlyBookings']);
+            Route::get('/pdf',              [ReportController::class, 'pdf']);
         });
+
+        // Hotel settings
+        Route::get('/settings',  [SettingsController::class, 'index']);
+        Route::put('/settings',  [SettingsController::class, 'update']);
     });
 });

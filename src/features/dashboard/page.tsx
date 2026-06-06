@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   AlertCircle,
   Banknote,
   BedDouble,
   Bell,
+  BookOpen,
+  Building2,
   CalendarDays,
   CheckCircle2,
   CreditCard,
   FileText,
   Hotel,
+  Loader2,
   LogIn,
   LogOut,
   Plus,
@@ -18,9 +21,12 @@ import {
   Sparkles,
   TrendingUp,
   UserCheck,
+  Users,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '@/app/store/authStore';
 import { useDashboardStore } from '@/app/store/dashboardStore';
+import { searchAll, type SearchHit, type SearchResponse } from '@/lib/protectedEndpoints';
 import { cn } from '@/lib/utils';
 
 const fadeUp = {
@@ -108,6 +114,7 @@ function KpiCard({
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const stats = useDashboardStore((state) => state.stats);
   const arrivals = useDashboardStore((state) => state.arrivals);
@@ -115,6 +122,12 @@ export default function DashboardPage() {
   const fetchStats = useDashboardStore((state) => state.fetchStats);
   const fetchArrivals = useDashboardStore((state) => state.fetchArrivals);
   const [now, setNow] = useState(() => new Date());
+  const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResponse | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchWrapRef = useRef<HTMLDivElement | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     void fetchStats();
@@ -125,6 +138,78 @@ export default function DashboardPage() {
     const timer = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (trimmed.length < 2) {
+      setSearchResults(null);
+      setSearching(false);
+      searchAbortRef.current?.abort();
+      return;
+    }
+    setSearching(true);
+    const ctrl = new AbortController();
+    searchAbortRef.current?.abort();
+    searchAbortRef.current = ctrl;
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await searchAll(trimmed, 6);
+        if (ctrl.signal.aborted) return;
+        const payload = res.data;
+        setSearchResults((payload as { data?: SearchResponse }).data ?? (payload as SearchResponse));
+      } catch {
+        if (!ctrl.signal.aborted) setSearchResults(null);
+      } finally {
+        if (!ctrl.signal.aborted) setSearching(false);
+      }
+    }, 220);
+    return () => {
+      ctrl.abort();
+      window.clearTimeout(timer);
+    };
+  }, [search]);
+
+  useEffect(() => {
+    function onClickOutside(event: MouseEvent) {
+      if (!searchWrapRef.current) return;
+      if (!searchWrapRef.current.contains(event.target as Node)) setSearchOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const trimmed = search.trim().toLowerCase();
+  const filteredArrivals = useMemo(() => {
+    if (!trimmed) return arrivals;
+    return arrivals.filter((arrival) => {
+      const guestName = [arrival.guest?.first_name, arrival.guest?.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      const room = String(arrival.room?.room_number ?? '').toLowerCase();
+      const reference = String(arrival.booking_reference ?? '').toLowerCase();
+      return guestName.includes(trimmed) || room.includes(trimmed) || reference.includes(trimmed);
+    });
+  }, [arrivals, trimmed]);
+
+  function pickHit(hit: SearchHit) {
+    setSearchOpen(false);
+    if (hit.type === 'guest') {
+      navigate(`/guests?q=${encodeURIComponent(hit.label)}`);
+    } else if (hit.type === 'booking') {
+      navigate(`/bookings?q=${encodeURIComponent(hit.label)}`);
+    } else if (hit.type === 'room') {
+      navigate(`/tape-chart?q=${encodeURIComponent(hit.label)}`);
+    }
+  }
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!trimmed) return;
+    // If the user typed a booking reference, jump straight to the bookings page
+    // with the query in the URL so the bookings page can pre-fill its search.
+    navigate(`/bookings?q=${encodeURIComponent(search.trim())}`);
+  };
 
   return (
     <motion.div
@@ -150,12 +235,81 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative min-w-64">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/55" />
-              <input
-                placeholder="Search guest, room, booking..."
-                className="h-10 w-full rounded-2xl border border-white/15 bg-white/12 pl-9 pr-3 text-sm text-white placeholder:text-white/50 outline-none transition focus:border-cyan-200/50"
-              />
+            <div ref={searchWrapRef} className="relative min-w-64">
+              <form onSubmit={handleSearchSubmit} role="search">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/55" />
+                <input
+                  value={search}
+                  onChange={(event) => { setSearch(event.target.value); setSearchOpen(true); }}
+                  onFocus={() => setSearchOpen(true)}
+                  placeholder="Search guest, room, booking..."
+                  aria-label="Search guest, room, or booking"
+                  className="h-10 w-full cursor-text rounded-2xl border border-white/15 bg-white/12 pl-9 pr-9 text-sm text-white outline-none transition placeholder:text-white/50 focus:border-cyan-200/50 focus:bg-white/18"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearch(''); setSearchResults(null); setSearchOpen(false); }}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white/70 transition hover:bg-white/30 hover:text-white"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </form>
+              <AnimatePresence>
+                {searchOpen && search.trim().length >= 2 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    className="absolute left-0 right-0 top-full z-30 mt-2 max-h-96 overflow-y-auto rounded-2xl border border-white/15 bg-slate-950/95 p-2 text-slate-900 shadow-2xl backdrop-blur-xl"
+                  >
+                    {searching && !searchResults && (
+                      <div className="flex items-center gap-2 px-3 py-2 text-xs text-cyan-100/80">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+                      </div>
+                    )}
+                    {searchResults && searchResults.total === 0 && (
+                      <p className="px-3 py-3 text-xs text-cyan-100/70">No matches for "{searchResults.query}".</p>
+                    )}
+                    {searchResults && (
+                      <div className="space-y-1">
+                        {searchResults.guests.length > 0 && (
+                          <SearchGroup title="Guests" Icon={Users}>
+                            {searchResults.guests.map((hit) => (
+                              <SearchHitRow key={`g-${hit.id}`} hit={hit} onClick={() => pickHit(hit)} />
+                            ))}
+                          </SearchGroup>
+                        )}
+                        {searchResults.bookings.length > 0 && (
+                          <SearchGroup title="Bookings" Icon={BookOpen}>
+                            {searchResults.bookings.map((hit) => (
+                              <SearchHitRow key={`b-${hit.id}`} hit={hit} onClick={() => pickHit(hit)} />
+                            ))}
+                          </SearchGroup>
+                        )}
+                        {searchResults.rooms.length > 0 && (
+                          <SearchGroup title="Rooms" Icon={Building2}>
+                            {searchResults.rooms.map((hit) => (
+                              <SearchHitRow key={`r-${hit.id}`} hit={hit} onClick={() => pickHit(hit)} />
+                            ))}
+                          </SearchGroup>
+                        )}
+                        <div className="border-t border-white/10 px-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={(e) => { setSearchOpen(false); handleSearchSubmit(e as unknown as React.FormEvent<HTMLFormElement>); }}
+                            className="w-full rounded-lg bg-cyan-500/15 px-3 py-2 text-left text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/25"
+                          >
+                            See all results in bookings →
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <div className="flex items-center gap-2 rounded-2xl bg-white/12 px-3 py-2">
               <UserCheck className="h-4 w-4 text-emerald-300" />
@@ -283,11 +437,18 @@ export default function DashboardPage() {
 
         <SectionCard className="xl:col-span-2">
           <SectionTitle title="Today's Arrivals" subtitle="Guests expected at the property" icon={<LogIn className="h-4 w-4" />} />
+          {trimmed && (
+            <p className="mb-3 rounded-xl border border-cyan-200/40 bg-cyan-50/80 px-3 py-1.5 text-xs font-semibold text-cyan-800">
+              Filtered by “{search.trim()}” — {filteredArrivals.length} of {arrivals.length} match
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            {arrivals.length === 0 ? (
-              <p className="text-sm text-slate-500 md:col-span-3">No arrivals scheduled for today.</p>
+            {filteredArrivals.length === 0 ? (
+              <p className="text-sm text-slate-500 md:col-span-3">
+                {trimmed ? `No arrivals match “${search.trim()}”.` : 'No arrivals scheduled for today.'}
+              </p>
             ) : (
-              arrivals.map((arrival) => {
+              filteredArrivals.map((arrival) => {
                 const guestName = [arrival.guest?.first_name, arrival.guest?.last_name].filter(Boolean).join(' ') || 'Guest';
                 const inDate = String(arrival.check_in_date).slice(0, 10);
                 const outDate = String(arrival.check_out_date).slice(0, 10);
@@ -305,5 +466,38 @@ export default function DashboardPage() {
         </SectionCard>
       </div>
     </motion.div>
+  );
+}
+
+function SearchGroup({ title, Icon, children }: { title: string; Icon: typeof Users; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-100/60">
+        <Icon className="h-3 w-3" /> {title}
+      </p>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+function SearchHitRow({ hit, onClick }: { hit: SearchHit; onClick: () => void }) {
+  const badge =
+    hit.type === 'guest'   ? { label: hit.stays ? `${hit.stays} stay${hit.stays === 1 ? '' : 's'}` : 'Guest', cls: 'bg-cyan-500/20 text-cyan-100' } :
+    hit.type === 'booking' ? { label: hit.status?.replace('_', ' ') ?? 'Booking', cls: 'bg-violet-500/20 text-violet-100' } :
+                             { label: hit.status ?? 'Room', cls: 'bg-emerald-500/20 text-emerald-100' };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-white/8"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-white">{hit.label}</p>
+        {hit.sub && <p className="truncate text-[11px] text-cyan-50/65">{hit.sub}</p>}
+      </div>
+      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize', badge.cls)}>
+        {badge.label}
+      </span>
+    </button>
   );
 }

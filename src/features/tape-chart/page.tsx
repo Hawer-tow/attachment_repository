@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { addDays, differenceInDays, format, isToday, isWeekend, startOfDay } from 'date-fns';
+import { DatePicker } from '@/components/ui/DatePicker';
 import {
   Ban,
   BedDouble,
@@ -10,6 +11,8 @@ import {
   Clock,
   CreditCard,
   Hash,
+  Layers,
+  LayoutGrid,
   LogIn,
   LogOut,
   MoveRight,
@@ -27,6 +30,13 @@ const DAYS = 30;
 const ROW_HEIGHT = 56;
 const ROOM_COL_WIDTH = 156;
 const DAY_WIDTH = 42;
+
+function isDateInRange(booking: Booking, today: Date): boolean {
+  const checkIn = new Date(booking.check_in);
+  const checkOut = new Date(booking.check_out);
+  // Booking counts as active if today is on/after check-in AND strictly before check-out
+  return today >= startOfDay(checkIn) && today < startOfDay(checkOut);
+}
 
 const STATUS_COLORS: Record<string, { bg: string; border: string; label: string }> = {
   confirmed: { bg: '#f59e0b', border: '#d97706', label: 'Reserved' },
@@ -109,59 +119,81 @@ function BookingModal({ booking, room, onClose, onAction }: { booking: Booking; 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {booking && (
         <motion.div
+          key="booking-modal-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
           onClick={onClose}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
         >
-          <div className="p-5 text-white" style={{ background: colors.bg }}>
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-medium opacity-80">{booking.reference}</span>
-              <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 hover:bg-white/30">
-                <X className="h-4 w-4" />
-              </button>
+          <motion.div
+            key="booking-modal-card"
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            onClick={(event) => event.stopPropagation()}
+            className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="p-5 text-white" style={{ background: colors.bg }}>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-medium opacity-80">{booking.reference}</span>
+                <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 hover:bg-white/30">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <h3 className="text-xl font-bold">{booking.guest_name}</h3>
+              <p className="mt-1 text-sm opacity-80">{room.type_name} - Room {room.number}</p>
             </div>
-            <h3 className="text-xl font-bold">{booking.guest_name}</h3>
-            <p className="mt-1 text-sm opacity-80">{room.type_name} - Room {room.number}</p>
-          </div>
 
-          <div className="space-y-3 p-5">
-            <div className="grid grid-cols-2 gap-3">
-              <Detail icon={<Calendar className="h-4 w-4 text-gray-400" />} label="Check-in" value={format(new Date(booking.check_in), 'MMM dd, yyyy')} />
-              <Detail icon={<Calendar className="h-4 w-4 text-gray-400" />} label="Check-out" value={format(new Date(booking.check_out), 'MMM dd, yyyy')} />
-              <Detail icon={<Hash className="h-4 w-4 text-gray-400" />} label="Nights" value={`${booking.nights}`} />
-              <Detail icon={<User className="h-4 w-4 text-gray-400" />} label="Status" value={colors.label} />
-              <Detail icon={<Phone className="h-4 w-4 text-gray-400" />} label="Phone" value={phone} />
-              <Detail icon={<CreditCard className="h-4 w-4 text-gray-400" />} label="Payment" value={paymentStatus} />
+            <div className="space-y-3 p-5">
+              <div className="grid grid-cols-2 gap-3">
+                <Detail icon={<Calendar className="h-4 w-4 text-gray-400" />} label="Check-in" value={format(new Date(booking.check_in), 'MMM dd, yyyy')} />
+                <Detail icon={<Calendar className="h-4 w-4 text-gray-400" />} label="Check-out" value={format(new Date(booking.check_out), 'MMM dd, yyyy')} />
+                <Detail icon={<Hash className="h-4 w-4 text-gray-400" />} label="Nights" value={`${booking.nights}`} />
+                <Detail icon={<User className="h-4 w-4 text-gray-400" />} label="Status" value={colors.label} />
+                <Detail icon={<Phone className="h-4 w-4 text-gray-400" />} label="Phone" value={phone} />
+                <Detail icon={<CreditCard className="h-4 w-4 text-gray-400" />} label="Payment" value={paymentStatus} />
+              </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-2 px-5 pb-5">
-            {[
-              { label: 'Edit', icon: Pencil, className: 'bg-blue-600 text-white hover:bg-blue-700' },
-              { label: 'Move Room', icon: MoveRight, className: 'bg-violet-600 text-white hover:bg-violet-700' },
-              { label: 'Extend Stay', icon: Clock, className: 'bg-amber-500 text-white hover:bg-amber-600' },
-              { label: 'Cancel', icon: Ban, className: 'bg-red-50 text-red-600 hover:bg-red-100' },
-              { label: 'Check In', icon: LogIn, className: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' },
-              { label: 'Check Out', icon: LogOut, className: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
-            ].map(({ label, icon: Icon, className }) => (
-              <button key={label} onClick={() => onAction(label)} className={cn('flex h-9 items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-colors', className)}>
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
+            <div className="grid grid-cols-2 gap-2 px-5 pb-5">
+              {[
+                { label: 'Edit', icon: Pencil, className: 'bg-blue-600 text-white hover:bg-blue-700' },
+                { label: 'Move Room', icon: MoveRight, className: 'bg-violet-600 text-white hover:bg-violet-700' },
+                { label: 'Extend Stay', icon: Clock, className: 'bg-amber-500 text-white hover:bg-amber-600' },
+                { label: 'Cancel', icon: Ban, className: 'bg-red-50 text-red-600 hover:bg-red-100' },
+                { label: 'Check In', icon: LogIn, className: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' },
+                { label: 'Check Out', icon: LogOut, className: 'bg-slate-100 text-slate-700 hover:bg-slate-200' },
+              ].map(({ label, icon: Icon, className }) => {
+                const isEdit = label === 'Edit';
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    disabled={isEdit}
+                    title={isEdit ? 'Open the booking form to edit dates, guest count, etc.' : undefined}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onAction(label);
+                    }}
+                    className={cn(
+                      'flex h-9 items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition-colors',
+                      isEdit && 'cursor-not-allowed opacity-60',
+                      className,
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
         </motion.div>
-      </div>
+      )}
     </AnimatePresence>
   );
 }
@@ -215,6 +247,7 @@ export default function TapeChartPage() {
   const [roomTypeFilter, setRoomTypeFilter] = useState('all');
   const [floorFilter, setFloorFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showAll, setShowAll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const dates = Array.from({ length: DAYS }, (_, i) => addDays(startDate, i));
@@ -229,14 +262,20 @@ export default function TapeChartPage() {
     if (tapeData?.rooms) setRooms(mapApiToTape(tapeData));
   }, [tapeData]);
 
+  // When "show all" is on, ignore room-type and floor filters so every
+  // room on every floor is rendered. The status filter always applies.
   const filteredRooms = rooms.filter((room) => {
-    const matchesType = roomTypeFilter === 'all' || room.type_name === roomTypeFilter;
-    const matchesFloor = floorFilter === 'all' || String(room.floor) === floorFilter;
+    const matchesType   = showAll || roomTypeFilter === 'all' || room.type_name === roomTypeFilter;
+    const matchesFloor  = showAll || floorFilter === 'all'    || String(room.floor) === floorFilter;
     const matchesStatus = statusFilter === 'all' || room.status === statusFilter || room.bookings.some((booking) => booking.status === statusFilter);
     return matchesType && matchesFloor && matchesStatus;
   });
 
-  const floors = Array.from(new Set(filteredRooms.map((room) => room.floor))).sort();
+  // If we're hiding every type (e.g. user selected a type that no longer
+  // has rooms), show all floors so the floor headers don't disappear.
+  const floors = filteredRooms.length
+    ? Array.from(new Set(filteredRooms.map((room) => room.floor))).sort()
+    : Array.from(new Set(rooms.map((room) => room.floor))).sort();
 
   const showActionMessage = (message: string) => {
     setActionMessage(message);
@@ -337,11 +376,36 @@ export default function TapeChartPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <SummaryCard label="Occupied Rooms" value={rooms.filter((r) => r.status === 'occupied').length} icon={<BedDouble className="h-5 w-5" />} gradient="from-red-500 to-red-700" />
-        <SummaryCard label="Available Rooms" value={rooms.filter((r) => r.status === 'available').length} icon={<BedDouble className="h-5 w-5" />} gradient="from-emerald-500 to-teal-700" />
-        <SummaryCard label="Reservations" value={rooms.reduce((sum, r) => sum + r.bookings.length, 0)} icon={<LogIn className="h-5 w-5" />} gradient="from-blue-500 to-indigo-700" />
-        <SummaryCard label="Checked-in" value={rooms.reduce((sum, r) => sum + r.bookings.filter((b) => b.status === 'checked_in').length, 0)} icon={<LogOut className="h-5 w-5" />} gradient="from-amber-500 to-orange-700" />
-        <SummaryCard label="Total Rooms" value={rooms.length} icon={<Sparkles className="h-5 w-5" />} gradient="from-violet-500 to-purple-700" />
+        <SummaryCard
+          label="Occupied Rooms"
+          value={rooms.reduce((sum, r) => sum + r.bookings.filter((b) => b.status === 'checked_in' && isDateInRange(b, startDate)).length, 0)}
+          icon={<BedDouble className="h-5 w-5" />}
+          gradient="from-red-500 to-red-700"
+        />
+        <SummaryCard
+          label="Available Rooms"
+          value={rooms.filter((r) => r.status === 'available' && !r.bookings.some((b) => b.status === 'checked_in' && isDateInRange(b, startDate))).length}
+          icon={<BedDouble className="h-5 w-5" />}
+          gradient="from-emerald-500 to-teal-700"
+        />
+        <SummaryCard
+          label="Reservations"
+          value={rooms.reduce((sum, r) => sum + r.bookings.filter((b) => b.status === 'confirmed' || b.status === 'pending').length, 0)}
+          icon={<LogIn className="h-5 w-5" />}
+          gradient="from-blue-500 to-indigo-700"
+        />
+        <SummaryCard
+          label="Checked-in"
+          value={rooms.reduce((sum, r) => sum + r.bookings.filter((b) => b.status === 'checked_in' && isDateInRange(b, startDate)).length, 0)}
+          icon={<LogOut className="h-5 w-5" />}
+          gradient="from-amber-500 to-orange-700"
+        />
+        <SummaryCard
+          label="Total Rooms"
+          value={rooms.length}
+          icon={<Sparkles className="h-5 w-5" />}
+          gradient="from-violet-500 to-purple-700"
+        />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -351,11 +415,11 @@ export default function TapeChartPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
+          <DatePicker
             value={format(startDate, 'yyyy-MM-dd')}
-            onChange={(event) => setStartDate(startOfDay(new Date(event.target.value)))}
-            className="h-8 rounded-lg bg-white px-3 text-xs font-semibold text-gray-700 outline-none"
+            onChange={(v) => v && setStartDate(startOfDay(new Date(v)))}
+            placeholder="Pick a start date"
+            className="h-8 w-44 text-xs font-semibold text-gray-700"
           />
           <button onClick={() => setStartDate((date) => addDays(date, -7))} className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 text-white hover:bg-white/30">
             <ChevronLeft className="h-4 w-4" />
@@ -370,12 +434,53 @@ export default function TapeChartPage() {
       </div>
 
       <div className="flex flex-col gap-3 rounded-2xl bg-white/90 p-4 shadow-sm backdrop-blur">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <select value={roomTypeFilter} onChange={(event) => setRoomTypeFilter(event.target.value)} className="h-9 rounded-xl border border-gray-200 px-3 text-sm outline-none">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            aria-pressed={showAll}
+            className={cn(
+              'inline-flex h-9 items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition',
+              showAll
+                ? 'border-cyan-300 bg-cyan-50 text-cyan-800 shadow-inner'
+                : 'border-gray-200 bg-white text-gray-600 hover:border-cyan-300 hover:text-cyan-700',
+            )}
+            title="Toggle to show every room on every floor"
+          >
+            <span
+              className={cn(
+                'relative inline-flex h-5 w-9 items-center rounded-full transition',
+                showAll ? 'bg-cyan-500' : 'bg-gray-300',
+              )}
+            >
+              <span
+                className={cn(
+                  'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition',
+                  showAll ? 'translate-x-5' : 'translate-x-1',
+                )}
+              />
+            </span>
+            <LayoutGrid className="h-4 w-4" />
+            Show all rooms
+          </button>
+
+          <span className="hidden h-6 w-px bg-gray-200 md:inline-block" />
+
+          <select
+            value={roomTypeFilter}
+            onChange={(event) => setRoomTypeFilter(event.target.value)}
+            disabled={showAll}
+            className={cn('h-9 rounded-xl border border-gray-200 px-3 text-sm outline-none', showAll && 'cursor-not-allowed bg-gray-100 text-gray-400')}
+          >
             <option value="all">All room types</option>
             {roomTypes.map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
-          <select value={floorFilter} onChange={(event) => setFloorFilter(event.target.value)} className="h-9 rounded-xl border border-gray-200 px-3 text-sm outline-none">
+          <select
+            value={floorFilter}
+            onChange={(event) => setFloorFilter(event.target.value)}
+            disabled={showAll}
+            className={cn('h-9 rounded-xl border border-gray-200 px-3 text-sm outline-none', showAll && 'cursor-not-allowed bg-gray-100 text-gray-400')}
+          >
             <option value="all">All floors</option>
             {floorOptions.map((floor) => <option key={floor} value={floor}>Floor {floor}</option>)}
           </select>
@@ -387,6 +492,15 @@ export default function TapeChartPage() {
             <option value="dirty">Cleaning</option>
             <option value="maintenance">Maintenance</option>
           </select>
+
+          <div className="ml-auto flex items-center gap-1.5 text-[11px] font-medium text-gray-500">
+            <Layers className="h-3.5 w-3.5" />
+            {showAll ? (
+              <span>Showing <strong className="text-cyan-700">all {roomTypes.length} room types</strong> across <strong className="text-cyan-700">all {floorOptions.length} floors</strong></span>
+            ) : (
+              <span>Filtered to <strong className="text-cyan-700">{roomTypeFilter === 'all' ? 'all types' : roomTypeFilter}</strong> · <strong className="text-cyan-700">{floorFilter === 'all' ? 'all floors' : `Floor ${floorFilter}`}</strong></span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -433,67 +547,88 @@ export default function TapeChartPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {floors.map((floor) => (
-            <div key={floor}>
-              <div className="flex items-center border-b border-gray-200 bg-gray-50 px-3 py-1">
-                <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Floor {floor}</span>
-              </div>
+          {floors.map((floor) => {
+            const floorRooms = filteredRooms.filter((room) => room.floor === floor);
+            const floorTypeNames = Array.from(new Set(floorRooms.map((room) => room.type_name)));
+            return (
+              <div key={floor}>
+                <div className="flex items-center gap-3 border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50 px-3 py-1.5">
+                  <div className="flex h-5 w-5 items-center justify-center rounded-md bg-slate-700 text-[10px] font-bold text-white">
+                    F
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Floor {floor}</span>
+                  <span className="text-[10px] text-gray-400">· {floorRooms.length} room{floorRooms.length === 1 ? '' : 's'}</span>
+                  {floorTypeNames.length > 0 && (
+                    <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                      {floorTypeNames.map((tn) => (
+                        <span key={tn} className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-medium text-cyan-700">
+                          {tn}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
-              {filteredRooms.filter((room) => room.floor === floor).map((room) => {
-                const statusBadge = ROOM_STATUS_BADGE[room.status] ?? ROOM_STATUS_BADGE.available;
-                return (
-                  <div key={room.id} className="group flex border-b border-gray-100 transition-colors hover:bg-blue-50/30" style={{ height: ROW_HEIGHT }}>
-                    <div className="flex shrink-0 items-center gap-2 border-r border-gray-200 px-3" style={{ width: ROOM_COL_WIDTH }}>
-                      <div>
-                        <p className="text-sm font-bold text-gray-800">#{room.number}</p>
-                        <div className="mt-0.5 flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: statusBadge.bg }} />
-                          <p className="text-[10px] text-gray-400">{room.type_name} - {statusBadge.label}</p>
+                {floorRooms.map((room) => {
+                  const statusBadge = ROOM_STATUS_BADGE[room.status] ?? ROOM_STATUS_BADGE.available;
+                  const activeBooking = room.bookings.find((b) => b.status === 'checked_in' && isDateInRange(b, startDate));
+                  return (
+                    <div key={room.id} className="group flex border-b border-gray-100 transition-colors hover:bg-blue-50/30" style={{ height: ROW_HEIGHT }}>
+                      <div className="flex shrink-0 items-center gap-2 border-r border-gray-200 px-3" style={{ width: ROOM_COL_WIDTH }}>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-gray-800">#{room.number}</p>
+                          <p className="truncate text-[10px] font-medium text-cyan-700">{room.type_name}</p>
+                          <div className="mt-0.5 flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full" style={{ background: statusBadge.bg }} />
+                            <p className="text-[10px] text-gray-400">
+                              {activeBooking ? `In-house · ${activeBooking.guest_name}` : statusBadge.label}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="relative flex-1 overflow-hidden">
-                      {dates.map((date, index) => (
-                        <div
-                          key={date.toISOString()}
-                          className={cn('absolute bottom-0 top-0 border-r border-gray-100', isToday(date) ? 'bg-blue-50/50' : isWeekend(date) ? 'bg-gray-50/50' : '')}
-                          style={{ left: index * DAY_WIDTH, width: DAY_WIDTH }}
-                        />
-                      ))}
+                      <div className="relative flex-1 overflow-hidden">
+                        {dates.map((date, index) => (
+                          <div
+                            key={date.toISOString()}
+                            className={cn('absolute bottom-0 top-0 border-r border-gray-100', isToday(date) ? 'bg-blue-50/50' : isWeekend(date) ? 'bg-gray-50/50' : '')}
+                            style={{ left: index * DAY_WIDTH, width: DAY_WIDTH }}
+                          />
+                        ))}
 
-                      {room.bookings.map((booking) => {
-                        const style = getBookingStyle(booking);
-                        if (!style) return null;
-                        return (
-                          <motion.button
-                            key={booking.id}
-                            whileHover={{ scale: 1.02, zIndex: 10 }}
-                            onClick={() => setSelectedBooking({ booking, room })}
-                            className="absolute bottom-2 top-2 cursor-pointer overflow-hidden rounded-lg text-left shadow-sm"
-                            style={{
-                              left: style.left,
-                              width: style.width,
-                              background: style.colors.bg,
-                              borderLeft: `3px solid ${style.colors.border}`,
-                            }}
-                            title={`${booking.guest_name} - Room ${room.number} - ${booking.check_in} to ${booking.check_out} - ${style.colors.label} - ${booking.nights} nights`}
-                          >
-                            <div className="flex h-full flex-col justify-center px-2 py-1">
-                              <p className="truncate text-xs font-semibold leading-tight text-white">{booking.guest_name}</p>
-                              {style.width > 72 && (
-                                <p className="truncate text-[10px] text-white/75">R{room.number} - {booking.nights}n - {style.colors.label}</p>
-                              )}
-                            </div>
-                          </motion.button>
-                        );
-                      })}
+                        {room.bookings.map((booking) => {
+                          const style = getBookingStyle(booking);
+                          if (!style) return null;
+                          return (
+                            <motion.button
+                              key={booking.id}
+                              whileHover={{ scale: 1.02, zIndex: 10 }}
+                              onClick={() => setSelectedBooking({ booking, room })}
+                              className="absolute bottom-2 top-2 cursor-pointer overflow-hidden rounded-lg text-left shadow-sm"
+                              style={{
+                                left: style.left,
+                                width: style.width,
+                                background: style.colors.bg,
+                                borderLeft: `3px solid ${style.colors.border}`,
+                              }}
+                              title={`${booking.guest_name} - Room ${room.number} - ${booking.check_in} to ${booking.check_out} - ${style.colors.label} - ${booking.nights} nights`}
+                            >
+                              <div className="flex h-full flex-col justify-center px-2 py-1">
+                                <p className="truncate text-xs font-semibold leading-tight text-white">{booking.guest_name}</p>
+                                {style.width > 72 && (
+                                  <p className="truncate text-[10px] text-white/75">R{room.number} · {booking.nights}n · {style.colors.label}</p>
+                                )}
+                              </div>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
 
