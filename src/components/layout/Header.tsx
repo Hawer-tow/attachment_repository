@@ -12,6 +12,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/reports': 'Reports',
   '/about': 'About Us',
   '/contact': 'Contact Us',
+  '/ai': 'AI Assistant',
 };
 
 const NOTIFICATIONS = [

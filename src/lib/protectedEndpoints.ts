@@ -178,6 +178,40 @@ export type TapeChartResponse = {
   date_range: string[];
 };
 
+
+// ─── Ai protected endpoint ───────────────────────────────────────────────────────────
+
+
+async function safeJsonRequest(url: string, options: RequestInit = {}) {
+  const response = await fetch(url, {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers ?? {}),
+    },
+    ...options,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Request failed');
+  }
+
+  return response.json();
+}
+
+export async function listAiInteractions() {
+  return safeJsonRequest('/api/ai/interactions');
+}
+
+export async function queryAi(prompt: string) {
+  return safeJsonRequest('/api/ai/interactions', {
+    method: 'POST',
+    body: JSON.stringify({ prompt }),
+  });
+}
+
+
 // ─── API functions ───────────────────────────────────────────────────────────
 
 export function fetchDashboardStats() {

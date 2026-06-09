@@ -23,7 +23,7 @@ use App\Http\Controllers\Api\PortalController;
 use App\Http\Controllers\Api\Portal\ServiceRequestController as PortalServiceRequestController;
 use App\Http\Controllers\Api\Portal\LoyaltyController as PortalLoyaltyController;
 use App\Http\Controllers\Api\ServiceRequestStaffController;
-
+use App\Http\Controllers\Api\AiController;
 /*
 |--------------------------------------------------------------------------
 | PUBLIC ROUTES (No Auth Required)
@@ -70,7 +70,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // M-Pesa STK Push — auth required to initiate payment
     Route::post('/mpesa/initiate', [MpesaController::class, 'initiate']);
+ 
+ 
+    /*
+    |----------------------------------------------------------------------
+    | Ai routes
+    |----------------------------------------------------------------------
+    */
 
+    Route::middleware('auth:sanctum')->group(function () {
+    Route::get('ai/interactions', [AiController::class, 'index']);
+    Route::post('ai/interactions', [AiController::class, 'store']);
+});
     /*
     |----------------------------------------------------------------------
     | Admin + Staff Routes
