@@ -24,23 +24,21 @@ use App\Http\Controllers\Api\Portal\ServiceRequestController as PortalServiceReq
 use App\Http\Controllers\Api\Portal\LoyaltyController as PortalLoyaltyController;
 use App\Http\Controllers\Api\ServiceRequestStaffController;
 use App\Http\Controllers\Api\AiController;
+
 /*
 |--------------------------------------------------------------------------
 | PUBLIC ROUTES (No Auth Required)
 |--------------------------------------------------------------------------
 */
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login',    [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register'])->name('register');
+Route::post('/login',    [AuthController::class, 'login'])->name('login');
 
-// About & Contact — publicly accessible
 Route::get('/about',    [AboutController::class,  'index']);
 Route::get('/contact',  [ContactController::class, 'index']);
 Route::post('/contact', [ContactController::class, 'store']);
 
-// M-Pesa callback — must be public (Safaricom calls this directly)
 Route::post('/mpesa/callback', [MpesaController::class, 'callback']);
 
-// Guest self-service portal — public landing, room browsing, and booking flow
 Route::prefix('portal')->group(function () {
     Route::get('room-types',            [PortalController::class, 'getRoomTypes']);
     Route::get('available-rooms',       [PortalController::class, 'getAvailableRooms']);
@@ -52,10 +50,9 @@ Route::prefix('portal')->group(function () {
     Route::post('service-requests',     [PortalServiceRequestController::class, 'store']);
     Route::get('loyalty',               [PortalLoyaltyController::class, 'show']);
 
-    // Room service
     Route::get('room-service/menu',                     [PortalController::class, 'roomServiceMenu']);
-    Route::post('room-service/orders',                 [PortalController::class, 'createRoomServiceOrder']);
-    Route::get('room-service/orders/lookup',           [PortalController::class, 'lookupRoomServiceOrder']);
+    Route::post('room-service/orders',                  [PortalController::class, 'createRoomServiceOrder']);
+    Route::get('room-service/orders/lookup',            [PortalController::class, 'lookupRoomServiceOrder']);
 });
 
 /*
@@ -65,80 +62,65 @@ Route::prefix('portal')->group(function () {
 */
 Route::middleware('auth:sanctum')->group(function () {
 
-    Route::get('/user',      [AuthController::class, 'user']);
-    Route::post('/logout',   [AuthController::class, 'logout']);
+    Route::get('/user',    [AuthController::class, 'user']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
-    // M-Pesa STK Push — auth required to initiate payment
     Route::post('/mpesa/initiate', [MpesaController::class, 'initiate']);
- 
- 
-    /*
-    |----------------------------------------------------------------------
-    | Ai routes
-    |----------------------------------------------------------------------
-    */
 
-    Route::middleware('auth:sanctum')->group(function () {
-    Route::get('ai/interactions', [AiController::class, 'index']);
-    Route::post('ai/interactions', [AiController::class, 'store']);
-});
     /*
-    |----------------------------------------------------------------------
+    |--------------------------------------------------------------------------
+    | AI Routes (Role Restricted)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:admin,manager,receptionist,housekeeper')->group(function () {
+        Route::get('ai/faqs', [AiController::class, 'faqs']);
+        Route::post('ai/query', [AiController::class, 'query']);
+        Route::get('ai/interactions', [AiController::class, 'interactions']);
+        Route::post('ai/interactions', [AiController::class, 'store']);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | Admin + Staff Routes
-    |----------------------------------------------------------------------
+    |--------------------------------------------------------------------------
     */
     Route::middleware('role:admin,staff')->group(function () {
-
-        // Rooms & Room Types (read only for staff)
         Route::apiResource('rooms',      RoomController::class)->only(['index', 'show']);
         Route::apiResource('room-types', RoomTypeController::class)->only(['index', 'show']);
 
-        // Full CRUD
         Route::apiResource('guests',             GuestController::class);
         Route::apiResource('bookings',           BookingController::class);
         Route::apiResource('housekeeping-tasks', HousekeepingTaskController::class);
         Route::apiResource('payments',           PaymentController::class);
 
-        // Concierge / service requests inbox
         Route::get('service-requests',            [ServiceRequestStaffController::class, 'index']);
         Route::patch('service-requests/{id}',     [ServiceRequestStaffController::class, 'update']);
 
-        // Room service orders (kitchen fulfilment)
         Route::get('room-service-orders',         [RoomServiceOrderStaffController::class, 'index']);
         Route::patch('room-service-orders/{id}',  [RoomServiceOrderStaffController::class, 'update']);
 
-        // Room status change history
         Route::get('room-status-logs', [RoomStatusLogController::class, 'index']);
 
-        // Dashboard
         Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
-
-        // Global search
         Route::get('/search', [SearchController::class, 'index']);
 
-        // Booking Actions
-        Route::get('/available-rooms',            [BookingController::class, 'availableRooms']);
-        Route::get('/booking-calendar',           [BookingController::class, 'calendar']);
-        Route::get('/bookings/{id}/invoice',      [BookingController::class, 'invoice']);
-        Route::post('/bookings/{id}/check-in',    [BookingController::class, 'checkIn']);
-        Route::post('/bookings/{id}/check-out',   [BookingController::class, 'checkOut']);
+        Route::get('/available-rooms',         [BookingController::class, 'availableRooms']);
+        Route::get('/booking-calendar',        [BookingController::class, 'calendar']);
+        Route::get('/bookings/{id}/invoice',   [BookingController::class, 'invoice']);
+        Route::post('/bookings/{id}/check-in', [BookingController::class, 'checkIn']);
+        Route::post('/bookings/{id}/check-out',[BookingController::class, 'checkOut']);
     });
 
     /*
-    |----------------------------------------------------------------------
+    |--------------------------------------------------------------------------
     | Admin Only Routes
-    |----------------------------------------------------------------------
+    |--------------------------------------------------------------------------
     */
     Route::middleware('role:admin')->group(function () {
-
-        // Rooms & Room Types (write for admin)
         Route::apiResource('rooms',      RoomController::class)->except(['index', 'show']);
         Route::apiResource('room-types', RoomTypeController::class)->except(['index', 'show']);
-
-        // Rate Overrides
         Route::apiResource('rate-overrides', RateOverrideController::class);
 
-        // Reports
         Route::prefix('reports')->group(function () {
             Route::get('/revenue',          [ReportController::class, 'revenue']);
             Route::get('/bookings',         [ReportController::class, 'bookings']);
@@ -148,8 +130,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/pdf',              [ReportController::class, 'pdf']);
         });
 
-        // Hotel settings
-        Route::get('/settings',  [SettingsController::class, 'index']);
-        Route::put('/settings',  [SettingsController::class, 'update']);
+        Route::get('/settings', [SettingsController::class, 'index']);
+        Route::put('/settings', [SettingsController::class, 'update']);
     });
 });

@@ -26,79 +26,133 @@ import GuestsPage from '@/features/guests/page';
 import ReportsPage from '@/features/reports/page';
 import AboutPage from '@/features/about/page';
 import ContactPage from '@/features/contact/page';
+import AiPage from '@/features/ai/page';
 
 // Each role's default landing page after login.
 const ROLE_HOME: Record<string, string> = {
-  admin:        '/',
-  manager:      '/reports',
+  admin: '/',
+  manager: '/reports',
   receptionist: '/bookings',
-  housekeeper:  '/housekeeping',
+  housekeeper: '/housekeeping',
 };
 
-// Pages each role is allowed to visit. Admin gets everything, manager
-// gets everything, receptionist is front-desk only, housekeeper is
-// housekeeping + dashboard read-only.
-const ROLE_PAGES: Record<string, string[]> = {
-  admin:        ['*'],
-  manager:      ['/', '/tape-chart', '/bookings', '/housekeeping', '/room-status-log', '/concierge-inbox', '/room-service-orders', '/guests', '/reports', '/rate-overrides', '/about', '/contact'],
-  receptionist: ['/', '/tape-chart', '/bookings', '/concierge-inbox', '/room-service-orders', '/guests', '/about', '/contact'],
-  housekeeper:  ['/', '/housekeeping', '/room-status-log', '/about', '/contact'],
+// Pages each role is allowed to visit.
+export const ROLE_PAGES: Record<string, string[]> = {
+  admin: [
+    '/',
+    '/tape-chart',
+    '/bookings',
+    '/housekeeping',
+    '/room-status-log',
+    '/guests',
+    '/reports',
+    '/concierge-inbox',
+    '/about',
+    '/contact',
+    '/settings',
+    '/rate-overrides',
+    '/room-service-orders',
+    '/ai',
+  ],
+  manager: [
+    '/',
+    '/tape-chart',
+    '/bookings',
+    '/housekeeping',
+    '/room-status-log',
+    '/guests',
+    '/reports',
+    '/concierge-inbox',
+    '/about',
+    '/contact',
+    '/rate-overrides',
+    '/room-service-orders',
+    '/ai',
+  ],
+  receptionist: [
+    '/',
+    '/tape-chart',
+    '/bookings',
+    '/concierge-inbox',
+    '/room-service-orders',
+    '/guests',
+    '/about',
+    '/contact',
+    '/ai',
+  ],
+  housekeeper: ['/', '/housekeeping', '/room-status-log', '/about', '/contact'],
 };
-function pageAllowed(role: string | undefined, path: string): boolean {
+
+export function pageAllowed(role: string | undefined, path: string): boolean {
   if (!role) return false;
   const allowed = ROLE_PAGES[role] ?? [];
   if (allowed.includes('*')) return true;
   return allowed.includes(path);
 }
 
+function roles(...roles: string[]): string[] {
+  return roles;
+}
+
 function RequireAuth() {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const hasHydrated = useAuthStore((s) => s.hasHydrated);
+  const { user, hasHydrated } = useAuthStore();
+
   if (!hasHydrated) return null;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+
   return <Outlet />;
 }
 
 function RequireRole({ allow }: { allow?: string[] }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const hasHydrated = useAuthStore((s) => s.hasHydrated);
-  const user = useAuthStore((s) => s.user);
+  const { user, hasHydrated } = useAuthStore();
   if (!hasHydrated) return null;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  const role = user?.role;
-  if (!role) return <Navigate to="/login" replace />;
-  if (allow && !allow.includes(role)) {
-    return <Navigate to={ROLE_HOME[role] ?? '/login'} replace />;
+  if (!user?.roleName) return <Navigate to="/login" replace />;
+
+  const roleName = user.roleName;
+
+  if (allow && !allow.includes(roleName)) {
+    const currentPath = window.location.pathname;
+    const targetPath = ROLE_HOME[roleName] ?? '/';
+    if (currentPath !== targetPath) {
+      return <Navigate to={targetPath} replace />;
+    }
   }
+
   return <Outlet />;
 }
 
 function RoleRedirect() {
-  const user = useAuthStore((s) => s.user);
-  if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={ROLE_HOME[user.role] ?? '/login'} replace />;
-}
+  const { user, hasHydrated } = useAuthStore();
+  if (!hasHydrated) return null;
+  if (!user?.roleName) return <Navigate to="/login" replace />;
 
-// Helper so each page declares which roles may visit it.
-function roles(...rs: string[]) { return rs; }
+  const roleName = user.roleName;
+  const targetPath = ROLE_HOME[roleName] ?? '/';
+  const currentPath = window.location.pathname;
+
+  if (currentPath !== targetPath) {
+    return <Navigate to={targetPath} replace />;
+  }
+
+  return <Outlet />;
+}
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
-  // Public guest self-service portal — no auth required
   {
     path: '/portal',
     element: <PortalLayout />,
     children: [
-      { index: true,           element: <PortalLandingPage /> },
-      { path: 'booking',       element: <PortalBookingPage /> },
-      { path: 'check-in',      element: <PortalCheckInPage /> },
-      { path: 'key',           element: <PortalDigitalKeyPage /> },
-      { path: 'reservations',  element: <PortalReservationsPage /> },
-      { path: 'room-service',  element: <PortalRoomServicePage /> },
-      { path: 'concierge',     element: <PortalConciergePage /> },
-      { path: 'billing',       element: <PortalBillingPage /> },
-      { path: 'loyalty',       element: <PortalLoyaltyPage /> },
-      { path: 'chat',          element: <PortalChatPage /> },
+      { index: true, element: <PortalLandingPage /> },
+      { path: 'booking', element: <PortalBookingPage /> },
+      { path: 'check-in', element: <PortalCheckInPage /> },
+      { path: 'key', element: <PortalDigitalKeyPage /> },
+      { path: 'reservations', element: <PortalReservationsPage /> },
+      { path: 'room-service', element: <PortalRoomServicePage /> },
+      { path: 'concierge', element: <PortalConciergePage /> },
+      { path: 'billing', element: <PortalBillingPage /> },
+      { path: 'loyalty', element: <PortalLoyaltyPage /> },
+      { path: 'chat', element: <PortalChatPage /> },
     ],
   },
   {
@@ -107,59 +161,23 @@ export const router = createBrowserRouter([
       {
         element: <DashboardLayout />,
         children: [
-          // Universal routes — visible to admin + manager + receptionist + housekeeper.
-          { path: '/', element: <RequireRole />, children: [
-            { index: true, element: <DashboardPage /> },
-          ]},
-          { path: '/about', element: <RequireRole />, children: [
-            { index: true, element: <AboutPage /> },
-          ]},
-          { path: '/contact', element: <RequireRole />, children: [
-            { index: true, element: <ContactPage /> },
-          ]},
-          // Front-desk pages: admin, manager, receptionist.
-          { path: '/tape-chart', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [
-            { index: true, element: <TapeChartPage /> },
-          ]},
-          { path: '/bookings', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [
-            { index: true, element: <BookingsPage /> },
-          ]},
-          { path: '/guests', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [
-            { index: true, element: <GuestsPage /> },
-          ]},
-          // Housekeeping: admin, manager, housekeeper.
-          { path: '/housekeeping', element: <RequireRole allow={roles('admin', 'manager', 'housekeeper')} />, children: [
-            { index: true, element: <HousekeepingPage /> },
-          ]},
-          // Reports: admin, manager.
-          { path: '/reports', element: <RequireRole allow={roles('admin', 'manager')} />, children: [
-            { index: true, element: <ReportsPage /> },
-          ]},
-          // Concierge inbox: admin, manager, receptionist.
-          { path: '/concierge-inbox', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [
-            { index: true, element: <ConciergeInboxPage /> },
-          ]},
-          // Hotel settings: admin only.
-          { path: '/settings', element: <RequireRole allow={roles('admin')} />, children: [
-            { index: true, element: <SettingsPage /> },
-          ]},
-          // Room status history: admin, manager, housekeeper.
-          { path: '/room-status-log', element: <RequireRole allow={roles('admin', 'manager', 'housekeeper')} />, children: [
-            { index: true, element: <RoomStatusLogPage /> },
-          ]},
-          // Rate overrides: admin, manager.
-          { path: '/rate-overrides', element: <RequireRole allow={roles('admin', 'manager')} />, children: [
-            { index: true, element: <RateOverridesPage /> },
-          ]},
-          // Room service orders (kitchen fulfilment): admin, manager, receptionist.
-          { path: '/room-service-orders', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [
-            { index: true, element: <RoomServiceOrdersPage /> },
-          ]},
+          { path: '/', element: <RequireRole />, children: [{ index: true, element: <DashboardPage /> }] },
+          { path: '/about', element: <RequireRole />, children: [{ index: true, element: <AboutPage /> }] },
+          { path: '/contact', element: <RequireRole />, children: [{ index: true, element: <ContactPage /> }] },
+          { path: '/tape-chart', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [{ index: true, element: <TapeChartPage /> }] },
+          { path: '/bookings', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [{ index: true, element: <BookingsPage /> }] },
+          { path: '/guests', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [{ index: true, element: <GuestsPage /> }] },
+          { path: '/housekeeping', element: <RequireRole allow={roles('admin', 'manager', 'housekeeper')} />, children: [{ index: true, element: <HousekeepingPage /> }] },
+          { path: '/reports', element: <RequireRole allow={roles('admin', 'manager')} />, children: [{ index: true, element: <ReportsPage /> }] },
+          { path: '/concierge-inbox', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [{ index: true, element: <ConciergeInboxPage /> }] },
+          { path: '/settings', element: <RequireRole allow={roles('admin')} />, children: [{ index: true, element: <SettingsPage /> }] },
+          { path: '/room-status-log', element: <RequireRole allow={roles('admin', 'manager', 'housekeeper')} />, children: [{ index: true, element: <RoomStatusLogPage /> }] },
+          { path: '/rate-overrides', element: <RequireRole allow={roles('admin', 'manager')} />, children: [{ index: true, element: <RateOverridesPage /> }] },
+          { path: '/room-service-orders', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [{ index: true, element: <RoomServiceOrdersPage /> }] },
+          { path: '/ai', element: <RequireRole allow={roles('admin', 'manager', 'receptionist')} />, children: [{ index: true, element: <AiPage /> }] },
         ],
       },
     ],
   },
   { path: '*', element: <RoleRedirect /> },
 ]);
-
-export { ROLE_PAGES, ROLE_HOME, pageAllowed };

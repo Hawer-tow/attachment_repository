@@ -1,15 +1,26 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '@/lib/api';
-import type { User } from '@/types';
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role_id: number;
+  roleName: string; // ✅ backend provides role.name directly
+}
 
 type LoginResponse = {
   data?: {
     token?: string;
-    user?: User;
+    user?: {
+      id: number;
+      name: string;
+      email: string;
+      role_id: number;
+      role?: string; // ✅ backend sends role.name here
+    };
   };
-  token?: string;
-  user?: User;
 };
 
 interface AuthState {
@@ -35,24 +46,25 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true });
         try {
-          const response = await api.post('/login', {
-            email,
-            password,
-          });
+          const response = await api.post('/login', { email, password });
 
-          const payload = response.data as LoginResponse;
-          const token = payload.data?.token ?? payload.token;
-          const user = payload.data?.user ?? payload.user;
+          // ✅ backend wraps everything in "data"
+          const { token, user } = response.data.data;
 
-          if (!token || !user) {
-            throw new Error('Login response did not include a user and token.');
-          }
+          // ✅ use role string directly from backend
+          const mappedUser: User = {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role_id: user.role_id,
+            roleName: user.role ?? 'receptionist', // fallback if missing
+          };
 
           localStorage.setItem('token', token);
           localStorage.setItem('auth_token', token);
-          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('user', JSON.stringify(mappedUser));
 
-          set({ user, token, isAuthenticated: true, isLoading: false });
+          set({ user: mappedUser, token, isAuthenticated: true, isLoading: false });
         } catch (err) {
           set({ isLoading: false });
           throw err;

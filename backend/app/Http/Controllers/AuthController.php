@@ -12,23 +12,33 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'name' => 'required',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6'
+            'name'     => 'required',
+            'email'    => 'required|email|unique:users',
+            'password' => 'required|min:6',
         ]);
 
+        // Default new users to "staff" role_id (adjust as needed)
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
+            'name'     => $request->name,
+            'email'    => $request->email,
             'password' => Hash::make($request->password),
-            'role' => 'staff',
+            'role_id'  => 2, // e.g. staff role_id, change to your default
         ]);
+
+        // Eager load role relationship
+        $user->load('role');
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return $this->success('User registered successfully', [
-            'user' => $user,
-            'token' => $token
+            'user'  => [
+                'id'       => $user->id,
+                'name'     => $user->name,
+                'email'    => $user->email,
+                'role_id'  => $user->role_id,
+                'role'     => $user->role ? $user->role->name : null, // ✅ send role name
+            ],
+            'token' => $token,
         ], 201);
     }
 
@@ -36,11 +46,11 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email'    => 'required|email',
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with('role')->where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return $this->error('Wrong email or password', null, 401);
@@ -49,8 +59,14 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return $this->success('Login successful', [
-            'user' => $user,
-            'token' => $token
+            'user'  => [
+                'id'       => $user->id,
+                'name'     => $user->name,
+                'email'    => $user->email,
+                'role_id'  => $user->role_id,
+                'role'     => $user->role ? $user->role->name : null, // ✅ send role name
+            ],
+            'token' => $token,
         ]);
     }
 
@@ -65,6 +81,14 @@ class AuthController extends Controller
     // USER PROFILE
     public function user(Request $request)
     {
-        return $this->success('User profile retrieved successfully', $request->user());
+        $user = $request->user()->load('role');
+
+        return $this->success('User profile retrieved successfully', [
+            'id'       => $user->id,
+            'name'     => $user->name,
+            'email'    => $user->email,
+            'role_id'  => $user->role_id,
+            'role'     => $user->role ? $user->role->name : null, // ✅ send role name
+        ]);
     }
 }

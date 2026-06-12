@@ -1,5 +1,5 @@
 import api from './api';
-
+import axios from 'axios';
 // ─── Response shapes that match Laravel's Controller::success() wrapper ────────
 
 export type PaginatedResponse<T> = { data: T[] };
@@ -179,11 +179,52 @@ export type TapeChartResponse = {
 };
 
 
-// ─── Ai protected endpoint ───────────────────────────────────────────────────────────
 
+// ...existing code...
 
-async function safeJsonRequest(url: string, options: RequestInit = {}) {
-  const response = await fetch(url, {
+// ─── Helper: apiCall with auth headers ────────────────────────────────────────
+
+async function apiCall(
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  endpoint: string,
+  body?: Record<string, unknown>,
+  headers?: Record<string, string>
+) {
+  const url = endpoint.startsWith('http') ? endpoint : `${BASE_URL}${endpoint}`;
+
+  const options: RequestInit = {
+    method,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(headers ?? {}),
+    },
+  };
+
+  if (body && ['POST', 'PUT', 'PATCH'].includes(method)) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || response.statusText || 'Request failed');
+  }
+
+  return data;
+}
+
+// ─── Ai protected endpoints ───────────────────────────────────────────────────────────
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000';
+
+/**
+ * Safe JSON fetch wrapper
+ */
+export async function safeJsonRequest(url: string, options: RequestInit = {}) {
+  const response = await fetch(url.startsWith('http') ? url : `${BASE_URL}${url}`, {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -192,24 +233,45 @@ async function safeJsonRequest(url: string, options: RequestInit = {}) {
     ...options,
   });
 
+  const data = await response.json();
+
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Request failed');
+    throw new Error(data.message || response.statusText);
   }
 
-  return response.json();
+  return data;
 }
 
-export async function listAiInteractions() {
-  return safeJsonRequest('/api/ai/interactions');
+/**
+ * Get FAQs filtered by role (backend enforces role restrictions)
+ */
+
+export async function listAiFaqs(headers?: Record<string, string>) {
+  return apiCall('GET', '/api/ai/faqs', undefined, headers);
 }
 
-export async function queryAi(prompt: string) {
-  return safeJsonRequest('/api/ai/interactions', {
-    method: 'POST',
-    body: JSON.stringify({ prompt }),
-  });
+
+/**
+ * Get AI interaction history for the authenticated user
+ */
+export async function listAiInteractions(headers?: Record<string, string>) {
+  return apiCall('GET', '/api/ai/interactions', undefined, headers);
 }
+
+/**
+ * Send a prompt to the AI service
+ */
+export async function queryAi(
+  payload: { prompt: string; faq_id?: number },
+  headers?: any
+) {
+  return axios.post(
+    `${BASE_URL}/api/ai/query`,   // ✅ explicit BASE_URL for clarity
+    payload,                      // ✅ send both prompt and faq_id
+    { headers }
+  );
+}
+
 
 
 // ─── API functions ───────────────────────────────────────────────────────────

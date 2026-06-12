@@ -1,20 +1,49 @@
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/app/store/authStore';
+import { useAiStore } from '@/app/store/aiStore';
 import { HotelSlideshow } from '@/components/common/HotelSlideshow';
 import { StaySyncLogo } from '@/components/common/StaySyncLogo';
 
 export default function LoginPage() {
   const { login, isAuthenticated, isLoading, user } = useAuthStore();
+  const { setRole } = useAiStore();
+  const navigate = useNavigate();
+
   const [email, setEmail]       = useState('admin@staysync.test');
   const [password, setPassword] = useState('password');
   const [error, setError]       = useState('');
 
- if (isAuthenticated) {
-  if (user?.role === 'housekeeping') return <Navigate to="/housekeeping" replace />;
-  if (user?.role === 'manager')      return <Navigate to="/reports"      replace />;
-  return <Navigate to="/" replace />;
-}
+  // ✅ After authentication, store role and redirect
+  useEffect(() => {
+    if (isAuthenticated && user?.roleName) {
+      setRole(user.roleName);
+
+      const currentPath = window.location.pathname;
+      let targetPath = '/';
+
+      switch (user.roleName) {
+        case 'housekeeping':
+          targetPath = '/housekeeping';
+          break;
+        case 'manager':
+          targetPath = '/reports';
+          break;
+        case 'receptionist':
+          targetPath = '/frontdesk';
+          break;
+        case 'admin':
+          targetPath = '/ai'; // ✅ admin goes to AI dashboard
+          break;
+        default:
+          targetPath = '/';
+      }
+
+      if (currentPath !== targetPath) {
+        navigate(targetPath, { replace: true });
+      }
+    }
+  }, [isAuthenticated, user?.roleName, setRole, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,12 +69,19 @@ export default function LoginPage() {
       </div>
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex flex-col items-center lg:hidden"><StaySyncLogo size="lg" textClassName="text-center [&_p:first-child]:text-foreground [&_p:last-child]:text-muted-foreground" /></div>
+          <div className="mb-8 flex flex-col items-center lg:hidden">
+            <StaySyncLogo
+              size="lg"
+              textClassName="text-center [&_p:first-child]:text-foreground [&_p:last-child]:text-muted-foreground"
+            />
+          </div>
           <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
             <h2 className="text-xl font-bold mb-1">Welcome back</h2>
             <p className="text-sm text-muted-foreground mb-6">Sign in to your dashboard</p>
             {error && (
-              <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>
+              <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+                {error}
+              </div>
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -53,6 +89,7 @@ export default function LoginPage() {
                 <input
                   id="email" type="email" value={email}
                   onChange={(e) => setEmail(e.target.value)} required
+                  autoComplete="email"
                   className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
@@ -61,6 +98,7 @@ export default function LoginPage() {
                 <input
                   id="password" type="password" value={password}
                   onChange={(e) => setPassword(e.target.value)} required
+                  autoComplete="current-password"
                   className="w-full h-10 px-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
